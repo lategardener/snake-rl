@@ -9,14 +9,32 @@ Projet Snake entraîné avec Reinforcement Learning (PPO). CPU-only.
 1. Création d'un environnement virtuel (optionnel mais recommandé) :
 
 ```bash
-python -m venv venv
-source venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 ```
 
 2. Installation des dépendances :
 
-```bash
-pip install -r requirements.txt
+# Créer et activer un venv
+python3 -m venv .venv
+source .venv/bin/activate
+
+Mettre pip à jour
 ```
+python3 -m pip install --upgrade pip
+```
+
+Installer PyTorch CPU (remplacez la ligne si une autre version est requise)
+```
+pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+```
+
+Installer stable-baselines3, gymnasium et libs usuelles
+```
+pip install stable-baselines3 gymnasium numpy pandas
+```
+
+
+
 
 
