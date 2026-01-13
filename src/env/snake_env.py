@@ -3,42 +3,44 @@ from gymnasium import spaces
 import numpy as np
 import random
 
+
 class SnakeEnv(gym.Env):
     """Environnement simple pour Snake"""
 
     metadata = {"render_modes": ["human"], "render_fps": 4}
 
-    def __init__(self, grid_size=10, render_mode=None):
+    def __init__(self, grid_size=5, render_mode=None, max_steps=1000):
         super().__init__()
 
         self.grid_size = grid_size
         self.render_mode = render_mode
+        self.max_steps = max_steps
 
         # Actions : 0=haut, 1=bas, 2=gauche, 3=droite
         self.action_space = spaces.Discrete(4)
 
-        # Observation : matrice de la grille
+        # Observation : matrice de la grille (grid_size x grid_size)
         self.observation_space = spaces.Box(
             low=0, high=2, shape=(grid_size, grid_size), dtype=np.int8
         )
 
         self.reset()
 
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.snake = [(self.grid_size // 2, self.grid_size // 2)]
-        self.direction = random.choice([0, 1, 2, 3])
         self._place_food()
-        self.done = False
+        self.step_count = 0
         return self._get_obs(), {}
 
+
     def step(self, action):
-        if self.done:
-            return self._get_obs(), 0, True, False, {}
+        self.step_count += 1
 
         # Déplacer la tête
         x, y = self.snake[0]
-        if action == 0:    # haut
+        if action == 0:  # haut
             x -= 1
         elif action == 1:  # bas
             x += 1
@@ -51,13 +53,15 @@ class SnakeEnv(gym.Env):
 
         # Vérifier collisions
         if (
-            x < 0
-            or x >= self.grid_size
-            or y < 0
-            or y >= self.grid_size
-            or new_head in self.snake
+                x < 0
+                or x >= self.grid_size
+                or y < 0
+                or y >= self.grid_size
+                or new_head in self.snake
         ):
-            self.done = True
+            # Collision = terminated (fin naturelle de l'épisode)
+            terminated = True
+            truncated = False
             reward = -1
         else:
             self.snake.insert(0, new_head)
@@ -68,7 +72,11 @@ class SnakeEnv(gym.Env):
                 reward = 0
                 self.snake.pop()
 
-        return self._get_obs(), reward, self.done, False, {}
+            terminated = False
+            # Truncated si on dépasse le nombre max de steps
+            truncated = self.step_count >= self.max_steps
+
+        return self._get_obs(), reward, terminated, truncated, {}
 
     def _place_food(self):
         empty = [
