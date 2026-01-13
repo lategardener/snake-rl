@@ -1,0 +1,15 @@
+{
+    "grid_size": "5x5",
+    "agents": [
+        {
+            "uuid": "4a114c0d-7b57-4d45-8a52-9fbdfba1dc28",
+            "algorithm": "PPO",
+            "grid_size": 5,
+            "n_envs": 4,
+            "total_timesteps": 1000,
+            "training_date": "20260113_205510",
+            "agent_filename": "agent_4a114c0d-7b57-4d45-8a52-9fbdfba1dc28.zip",
+            "agent_path": "saved_agents/5x5/agent_4a114c0d-7b57-4d45-8a52-9fbdfba1dc28.zip"
+        }
+    ]
+}
