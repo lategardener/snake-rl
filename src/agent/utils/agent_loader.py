@@ -28,8 +28,8 @@ def load_agent(
     current_file = Path(__file__).resolve()
     repo_root = current_file.parent.parent.parent.parent
 
-    # Les agents sont maintenant directement dans agent/agents/ (sans src/)
-    save_dir = repo_root / "agent" / "agents" / f"{grid_size}x{grid_size}"
+    # Les agents sont dans saved_agents/
+    save_dir = repo_root / "saved_agents" / f"{grid_size}x{grid_size}"
     metadata_file = save_dir / "agents_history.json"
 
     if not metadata_file.exists():
@@ -111,7 +111,7 @@ def list_agents(grid_size: int | None = None) -> dict:
     """
     current_file = Path(__file__).resolve()
     repo_root = current_file.parent.parent.parent.parent
-    agents_dir = repo_root / "agent" / "agents"
+    agents_dir = repo_root / "saved_agents"
 
     if not agents_dir.exists():
         return {}
@@ -132,7 +132,6 @@ def list_agents(grid_size: int | None = None) -> dict:
                 all_agents[history["grid_size"]] = history["agents"]
 
     return all_agents
-
 
 
 def show_available_agents(grid_size: int | None = None):
