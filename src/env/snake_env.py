@@ -2,7 +2,14 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import random
+import shutil
 
+# Codes ANSI pour les couleurs
+RESET = "\033[0m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+WHITE = "\033[37m"
 
 class SnakeEnv(gym.Env):
     """Environnement simple pour Snake"""
@@ -98,11 +105,21 @@ class SnakeEnv(gym.Env):
     def render(self):
         if self.render_mode != "human":
             return
-        print("\n".join(
-            "".join(
-                "S" if (i, j) in self.snake else "F" if (i, j) == self.food else "."
+
+        # Haut du plateau
+        print(WHITE + "┌" + "─" * (self.grid_size * 2) + "┐" + RESET)
+
+        for i in range(self.grid_size):
+            line = WHITE + "│" + RESET + "".join(
+                (GREEN + "■ " + RESET) if (i, j) == self.snake[0] else  # tête verte
+                (YELLOW + "■ " + RESET) if (i, j) in self.snake[1:] else  # corps jaune
+                (RED + "■" + RESET + " ") if (i, j) == self.food else  # fruit rouge
+                "  "  # vide
                 for j in range(self.grid_size)
             )
-            for i in range(self.grid_size)
-        ))
+            line += WHITE + "│" + RESET
+            print(line)
+
+        # Bas du plateau
+        print(WHITE + "└" + "─" * (self.grid_size * 2) + "┘" + RESET)
         print()
