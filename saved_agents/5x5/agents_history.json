@@ -10,6 +10,86 @@
             "training_date": "20260113_205510",
             "agent_filename": "agent_4a114c0d-7b57-4d45-8a52-9fbdfba1dc28.zip",
             "agent_path": "saved_agents/5x5/agent_4a114c0d-7b57-4d45-8a52-9fbdfba1dc28.zip"
+        },
+        {
+            "uuid": "220b521d-79ae-4047-80e2-940beca0a1e3",
+            "algorithm": "PPO",
+            "grid_size": 5,
+            "n_envs": 4,
+            "total_timesteps": 1000,
+            "training_date": "20260113_213611",
+            "agent_filename": "agent_220b521d-79ae-4047-80e2-940beca0a1e3.zip",
+            "agent_path": "saved_agents/5x5/agent_220b521d-79ae-4047-80e2-940beca0a1e3.zip"
+        },
+        {
+            "uuid": "75d6bd2f-f608-419e-a040-2424a21f7dd2",
+            "algorithm": "PPO",
+            "grid_size": 5,
+            "n_envs": 4,
+            "total_timesteps": 1000,
+            "training_date": "20260113_213710",
+            "agent_filename": "agent_75d6bd2f-f608-419e-a040-2424a21f7dd2.zip",
+            "agent_path": "saved_agents/5x5/agent_75d6bd2f-f608-419e-a040-2424a21f7dd2.zip"
+        },
+        {
+            "uuid": "a54b44a0-0a92-436d-ad72-6a8eb8bfb83a",
+            "algorithm": "PPO",
+            "grid_size": 5,
+            "n_envs": 4,
+            "total_timesteps": 1000,
+            "training_date": "20260113_213753",
+            "agent_filename": "agent_a54b44a0-0a92-436d-ad72-6a8eb8bfb83a.zip",
+            "agent_path": "saved_agents/5x5/agent_a54b44a0-0a92-436d-ad72-6a8eb8bfb83a.zip"
+        },
+        {
+            "uuid": "f9f82fc7-9464-4801-99e7-7c0198b5e33a",
+            "algorithm": "PPO",
+            "grid_size": 5,
+            "n_envs": 4,
+            "total_timesteps": 1000,
+            "training_date": "20260113_213841",
+            "agent_filename": "agent_f9f82fc7-9464-4801-99e7-7c0198b5e33a.zip",
+            "agent_path": "saved_agents/5x5/agent_f9f82fc7-9464-4801-99e7-7c0198b5e33a.zip"
+        },
+        {
+            "uuid": "cd5e10c4-3bd8-417b-996d-c9818d466193",
+            "algorithm": "PPO",
+            "grid_size": 5,
+            "n_envs": 4,
+            "total_timesteps": 1000,
+            "training_date": "20260113_213926",
+            "agent_filename": "agent_cd5e10c4-3bd8-417b-996d-c9818d466193.zip",
+            "agent_path": "saved_agents/5x5/agent_cd5e10c4-3bd8-417b-996d-c9818d466193.zip"
+        },
+        {
+            "uuid": "5ee3a1ae-5fd9-4f11-bed0-0af8fa923926",
+            "algorithm": "PPO",
+            "grid_size": 5,
+            "n_envs": 4,
+            "total_timesteps": 1000,
+            "training_date": "20260113_214009",
+            "agent_filename": "agent_5ee3a1ae-5fd9-4f11-bed0-0af8fa923926.zip",
+            "agent_path": "saved_agents/5x5/agent_5ee3a1ae-5fd9-4f11-bed0-0af8fa923926.zip"
+        },
+        {
+            "uuid": "9701e33f-a414-4a43-a067-753827a47018",
+            "algorithm": "PPO",
+            "grid_size": 5,
+            "n_envs": 4,
+            "total_timesteps": 1000,
+            "training_date": "20260114_123329",
+            "agent_filename": "agent_9701e33f-a414-4a43-a067-753827a47018.zip",
+            "agent_path": "saved_agents/5x5/agent_9701e33f-a414-4a43-a067-753827a47018.zip"
+        },
+        {
+            "uuid": "9abb4e1a-2851-4260-abd4-d4b8a7c38a43",
+            "algorithm": "PPO",
+            "grid_size": 5,
+            "n_envs": 4,
+            "total_timesteps": 100000,
+            "training_date": "20260114_123659",
+            "agent_filename": "agent_9abb4e1a-2851-4260-abd4-d4b8a7c38a43.zip",
+            "agent_path": "saved_agents/5x5/agent_9abb4e1a-2851-4260-abd4-d4b8a7c38a43.zip"
         }
     ]
 }

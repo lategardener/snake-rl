@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Snake AI - RL Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Snake AI <small>Powered by PPO</small></h1>
+        <div class="game-area">
+            <canvas id="snakeCanvas" width="400" height="400"></canvas>
+            <div class="stats">
+                <p>Score: <span id="score">0</span></p>
+                <p>Action IA: <span id="ia-action">-</span></p>
+                <button onclick="resetGame()">Réinitialiser</button>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/game.js"></script>
+</body>
+</html>

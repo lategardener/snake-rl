@@ -1,0 +1,25 @@
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from app.routers import api
+import os
+
+app = FastAPI(title="Snake AI Web App")
+
+# Montage des fichiers statiques (JS/CSS)
+app.mount("/static", StaticFiles(directory="web/static"), name="static")
+
+# Configuration des templates HTML
+templates = Jinja2Templates(directory="web/templates")
+
+# Inclusion du router API
+app.include_router(api.router, prefix="/api")
+
+@app.get("/")
+async def read_root(request: Request):
+    """Affiche la page d'accueil du jeu"""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000)

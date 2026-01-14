@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # L'application Web & IA
+  snake-app:
+    build: .
+    container_name: snake-ai-container
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    environment:
+      - MODEL_PATH=saved_agents/5x5/agent_f9f82fc7-9464-4801-99e7-7c0198b5e33a.zip
+    restart: always
+
+  # Prometheus : Collecteur de métriques
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-snake
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: always
+
+  # Grafana : Dashboard visuel
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-snake
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: always
