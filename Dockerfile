@@ -5,8 +5,7 @@ FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Installation des dépendances système
-# Correction : on remplace libgl1-mesa-glx par libgl1
+# Installation des dépendances système (Nécessaire pour Gym/Pygame/OpenCV)
 RUN apt-get update && apt-get install -y \
     build-essential \
     libgl1 \
@@ -25,8 +24,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copie du reste du code
 COPY . .
 
-# Exposition du port de l'API
-EXPOSE 8000
+# CORRECTION ICI : On expose le bon port
+EXPOSE 7860
 
-# Commande de lancement
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]
+# Commande de lancement (inchangée)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]

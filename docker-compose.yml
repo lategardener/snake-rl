@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # L'application Web & IA
+  # L'application Web & IA (FastAPI + React/HTML)
   snake-app:
     build: .
     container_name: snake-ai-container
@@ -9,8 +9,9 @@ services:
       - "5000:5000"
     volumes:
       - .:/app
-    environment:
-      - MODEL_PATH=saved_agents/5x5/agent_f9f82fc7-9464-4801-99e7-7c0198b5e33a.zip
+    # Charge les variables du fichier .env (surtout le HF_HUB_TOKEN)
+    env_file:
+      - .env
     restart: always
 
   # Prometheus : Collecteur de métriques
