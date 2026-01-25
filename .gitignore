@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 saved_agents/
 src/agent/testing/quick_test.py
+.env
