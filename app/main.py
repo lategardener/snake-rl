@@ -1,10 +1,20 @@
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.cors import CORSMiddleware
+
 from app.routers import api
 import os
 
 app = FastAPI(title="Snake AI Web App")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # "*" signifie "tout le monde". Pour la prod, tu mettras l'URL de ton GitHub
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Montage des fichiers statiques (JS/CSS)
 app.mount("/static", StaticFiles(directory="web/static"), name="static")

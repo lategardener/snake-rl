@@ -18,7 +18,7 @@ class SnakeEnv(gym.Env):
     """
     metadata = {"render_modes": ["human", "pygame"], "render_fps": 10}
 
-    def __init__(self, grid_size=10, render_mode=None, max_steps=1e4):
+    def __init__(self, grid_size=10, render_mode=None, max_steps=150):
         super().__init__()
 
         self.grid_size = grid_size
