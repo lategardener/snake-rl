@@ -2,21 +2,64 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Snake AI - RL Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake AI • Neural Arcade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Snake AI <small>Powered by PPO</small></h1>
-        <div class="game-area">
-            <canvas id="snakeCanvas" width="400" height="400"></canvas>
-            <div class="stats">
-                <p>Score: <span id="score">0</span></p>
-                <p>Action IA: <span id="ia-action">-</span></p>
-                <button onclick="resetGame()">Réinitialiser</button>
-            </div>
-        </div>
+
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
     </div>
+
+    <div class="main-layout">
+
+        <aside class="glass-panel sidebar">
+            <div class="header">
+                <h2>NEURAL <span class="highlight">MODELS</span></h2>
+                <p class="subtitle">Select an agent to deploy</p>
+            </div>
+
+            <div id="model-list" class="model-list">
+                <div class="loading">Scanning Hugging Face...</div>
+            </div>
+        </aside>
+
+        <main class="glass-panel game-arena">
+            <div class="arena-header">
+                <div class="current-model-info">
+                    <span class="label">ACTIVE AGENT</span>
+                    <h1 id="active-model-name">NO AGENT LOADED</h1>
+                </div>
+                <div class="score-board">
+                    <span class="label">SCORE</span>
+                    <span id="score" class="score-value">0</span>
+                </div>
+            </div>
+
+            <div class="canvas-wrapper">
+                <canvas id="snakeCanvas" width="500" height="500"></canvas>
+                <div id="overlay" class="overlay">
+                    <p>SELECT A MODEL TO START</p>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="status-indicator">
+                    <div id="status-dot" class="dot"></div>
+                    <span id="status-text">WAITING...</span>
+                </div>
+                <div class="action-display">
+                    ACTION: <span id="ia-action" class="action-value">-</span>
+                </div>
+                <button onclick="resetGame()" class="neon-btn">REBOOT SYSTEM</button>
+            </div>
+        </main>
+    </div>
+
     <script src="/static/js/game.js"></script>
 </body>
 </html>
