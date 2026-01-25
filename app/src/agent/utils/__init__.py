@@ -1,3 +1,3 @@
-from .agent_loader import load_agent, list_agents
+from .display import display_training_summary
 
-__all__ = ['load_agent', 'list_agents', 'list_agents']
+__all__ = ['display_training_summary']
