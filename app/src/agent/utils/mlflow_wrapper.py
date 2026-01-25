@@ -1,4 +1,9 @@
+from typing import Any, List, Dict
+
 import mlflow.pyfunc
+import numpy as np
+
+
 class SnakeHFModel(mlflow.pyfunc.PythonModel):
     """
     Classe Wrapper qui permet à MLflow de savoir comment charger et utiliser
@@ -26,10 +31,9 @@ class SnakeHFModel(mlflow.pyfunc.PythonModel):
         # Chargement en mémoire
         self.model = PPO.load(model_path)
 
-    def predict(self, context, model_input, params=None):
+    def predict(self, context, model_input: np.ndarray, params: Dict[str, Any] = None):
         """
-        MLflow exige que le paramètre s'appelle 'model_input'.
-        Ici, model_input correspondra à ton observation.
+        Prédiction avec signature typée pour calmer MLflow.
         """
         action, _ = self.model.predict(model_input)
         return action

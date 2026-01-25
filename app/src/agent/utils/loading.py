@@ -18,7 +18,7 @@ def load_snake_model_data(uuid: str, hf_repo_id: str):
         print("❌ Erreur : HF_HUB_TOKEN manquant.")
         return None, None
 
-    print(f"🔍 Scan du dépôt pour trouver l'UUID : {uuid} ...")
+    print(f"Scan du dépôt pour trouver l'UUID : {uuid} ...")
     api = HfApi(token=token)
 
     try:
@@ -32,10 +32,10 @@ def load_snake_model_data(uuid: str, hf_repo_id: str):
                 break
 
         if not target_path:
-            print(f"❌ Impossible de trouver un dossier contenant l'UUID {uuid}")
+            print(f"Impossible de trouver un dossier contenant l'UUID {uuid}")
             return None, None
 
-        print(f"📍 Fichier trouvé : {target_path}")
+        print(f"Fichier trouvé : {target_path}")
 
         local_meta_path = hf_hub_download(
             repo_id=hf_repo_id,
@@ -51,7 +51,7 @@ def load_snake_model_data(uuid: str, hf_repo_id: str):
 
         model_path_in_repo = target_path.replace("metadata.json", "model.zip")
 
-        print(f"📥 Téléchargement du modèle : {model_path_in_repo}")
+        print(f"Téléchargement du modèle : {model_path_in_repo}")
         local_model_path = hf_hub_download(
             repo_id=hf_repo_id,
             filename=model_path_in_repo,
@@ -65,5 +65,5 @@ def load_snake_model_data(uuid: str, hf_repo_id: str):
         return agent, grid_size
 
     except Exception as e:
-        print(f"❌ Erreur lors du scan/chargement : {e}")
+        print(f" Erreur lors du scan/chargement : {e}")
         return None, None
