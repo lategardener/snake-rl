@@ -18,7 +18,7 @@ class SnakeEnv(gym.Env):
     """
     metadata = {"render_modes": ["human", "pygame"], "render_fps": 10}
 
-    def __init__(self, grid_size=10, render_mode=None, max_steps=200):
+    def __init__(self, grid_size=10, render_mode=None, max_steps=1e4):
         super().__init__()
 
         self.grid_size = grid_size
@@ -61,16 +61,16 @@ class SnakeEnv(gym.Env):
 
     def step(self, action):
         self.step_count += 1
-        
+
         # 1. Calculer la nouvelle position de la tête
         head_x, head_y = self.snake[0]
-        if action == 0:   # Haut
+        if action == 0:  # Haut
             head_x -= 1
-        elif action == 1: # Bas
+        elif action == 1:  # Bas
             head_x += 1
-        elif action == 2: # Gauche
+        elif action == 2:  # Gauche
             head_y -= 1
-        elif action == 3: # Droite
+        elif action == 3:  # Droite
             head_y += 1
 
         new_head = (head_x, head_y)
@@ -80,21 +80,24 @@ class SnakeEnv(gym.Env):
         reward = 0
 
         # Collision murs ou corps
-        if (head_x < 0 or head_x >= self.grid_size or 
-            head_y < 0 or head_y >= self.grid_size or 
-            new_head in self.snake):
+        if (head_x < 0 or head_x >= self.grid_size or
+                head_y < 0 or head_y >= self.grid_size or
+                new_head in self.snake):
             terminated = True
             reward = -1  # Grosse pénalité en cas de mort
         else:
             self.snake.insert(0, new_head)
-            
+
             # 3. Vérifier si mange la nourriture
             if new_head == self.food:
-                reward = 1 # Grosse récompense
-                self._place_food()
+                reward = 1  # Grosse récompense
+                placed = self._place_food()
+                if not placed:
+                    # Plus de cases vides -> dernière nourriture mangée -> fin de la partie
+                    terminated = True
             else:
-                self.snake.pop() # On retire la queue si on n'a pas mangé
-                reward = 0 # Petite pénalité pour encourager à avancer vite
+                self.snake.pop()  # On retire la queue si on n'a pas mangé
+                reward = -0.01  # Petite pénalité pour encourager à avancer vite
 
         # 4. Vérifier la troncature (temps max)
         truncated = self.step_count >= self.max_steps
@@ -106,13 +109,18 @@ class SnakeEnv(gym.Env):
         return self._get_obs(), reward, terminated, truncated, {}
 
     def _place_food(self):
-        """Place une pomme sur une case vide."""
+        """Place une pomme sur une case vide. Retourne True si placée, False sinon."""
         empty_cells = [
             (r, c) for r in range(self.grid_size) for c in range(self.grid_size)
             if (r, c) not in self.snake
         ]
         if empty_cells:
             self.food = random.choice(empty_cells)
+            return True
+        else:
+            self.food = None
+            return False
+
 
     def _get_obs(self):
         """Génère la matrice de la grille."""
