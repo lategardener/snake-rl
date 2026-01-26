@@ -30,7 +30,7 @@ def train_snake(
         grid_size: int = None,
         n_envs: int = 4,
         algorithm: str = "PPO",
-        hf_repo_id: str = "Lategardener/snake-rl-models",
+        hf_repo_id: str = "snakeRL/snake-rl-modelss",
         base_uuid: str = None
 ):
     # Initialisation des variables de temps et d'ID
