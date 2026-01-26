@@ -21,3 +21,6 @@ prometheus-fastapi-instrumentator
 # --- Hugging Face ---
 huggingface_hub
 python-dotenv
+
+# RL
+stable-baselines3
