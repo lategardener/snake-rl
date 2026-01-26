@@ -1,8 +1,12 @@
---extra-index-url https://download.pytorch.org/whl/cpu
+# --- OPTIMISATION CPU (Indispensable pour Render Free) ---
+# On dit à pip de chercher la version CPU de PyTorch en priorité
+torch --index-url https://download.pytorch.org/whl/cpu
 
-# Core (Mise à jour pour NumPy 2.0)
-numpy>=2.0.0
-stable-baselines3>=2.3.0
+# --- Tes dépendances ---
+fastapi==0.104.1
+uvicorn==0.24.0
+jinja2==3.1.2
+python-multipart==0.0.6
 gymnasium==0.29.1
 shimmy>=1.3.0
 torch==2.7.1+cpu
@@ -14,9 +18,8 @@ uvicorn>=0.24.0
 jinja2>=3.1.2
 python-multipart>=0.0.21
 prometheus-client==0.19.0
-prometheus-fastapi-instrumentator==6.1.0
+shimmy>=1.3.0
 
-# Divers
-huggingface_hub>=0.19.0
-psycopg2-binary>=2.9.9
-python-dotenv>=1.0.0
+# --- Ajout nécessaire pour ton code ---
+huggingface_hub
+python-dotenv
