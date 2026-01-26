@@ -5,3 +5,5 @@ __pycache__/
 saved_agents/
 src/agent/testing/quick_test.py
 .env
+.git
+mlruns
