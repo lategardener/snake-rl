@@ -22,16 +22,17 @@ jobs:
     - name: Install dependencies
       run: |
         python3 -m pip install --upgrade pip
-        # Installation des dépendances du projet
+        # Installe tout via le fichier requirements.txt mis à jour
         pip install -r requirements.txt
-        # Dépendances spécifiques aux tests
-        pip install pytest httpx
+        # Installe juste les outils de test restants
+        pip install pytest-asyncio pytest-mock
 
     - name: Run tests with pytest
       env:
-        # On définit le PYTHONPATH sur la racine pour que 'app' soit importable
+        # Assure-toi que le PYTHONPATH est bien la racine du projet
         PYTHONPATH: ${{ github.workspace }}
-        # Token fictif pour les tests (évite les erreurs au chargement de l'API)
         HF_HUB_TOKEN: "mock_token"
+        MLFLOW_TRACKING_URI: "postgresql://user:pass@localhost/db"
       run: |
+        # On lance pytest depuis la racine directement
         python -m pytest tests/
