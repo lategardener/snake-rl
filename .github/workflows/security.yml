@@ -1,0 +1,59 @@
+name: Security Scan (Trivy)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    - cron: '0 0 * * 1' # Tous les lundis à minuit
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 1. Scan du système de fichiers (dépendances dans requirements.txt)
+      - name: Run Trivy vulnerability scanner (FS mode)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.' # Scan la racine pour trouver requirements.txt
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
+
+      # 2. Scan des erreurs de configuration (Dockerfile & Dockerfile.mlflow)
+      - name: Run Trivy for Dockerfile misconfigurations
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          hide-progress: false
+          exit-code: '1'
+          severity: 'CRITICAL'
+        
+      # 3. Build & Scan de l'image de l'Application principale
+      - name: Build Snake App Image
+        run: docker build -t snake-app:latest -f Dockerfile .
+
+      - name: Scan Snake App Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'snake-app:latest'
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'
+
+      # 4. Build & Scan de l'image MLflow (Optionnel mais recommandé)
+      - name: Build MLflow Image
+        run: docker build -t mlflow-server:latest -f Dockerfile.mlflow .
+
+      - name: Scan MLflow Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'mlflow-server:latest'
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'
