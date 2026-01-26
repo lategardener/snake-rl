@@ -2,11 +2,14 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator 
 
 from app.routers import api
 import os
 
 app = FastAPI(title="Snake AI Web App")
+
+Instrumentator().instrument(app).expose(app)  
 
 app.add_middleware(
     CORSMiddleware,
