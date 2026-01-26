@@ -1,25 +1,21 @@
-# --- OPTIMISATION CPU (Indispensable pour Render Free) ---
-# On dit à pip de chercher la version CPU de PyTorch en priorité
-torch --index-url https://download.pytorch.org/whl/cpu
+# --- PyTorch CPU uniquement (Render Free, sans CUDA) ---
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.7.1
+torchvision==0.18.0
 
-# --- Tes dépendances ---
+# --- Backend Web ---
 fastapi==0.104.1
 uvicorn==0.24.0
 jinja2==3.1.2
 python-multipart==0.0.6
+
+# --- RL / Environnement ---
 gymnasium==0.29.1
 shimmy>=1.3.0
-torch==2.7.1+cpu
-torchvision==0.18.0+cpu
 
-# Serveur & Monitoring
-fastapi>=0.104.1
-uvicorn>=0.24.0
-jinja2>=3.1.2
-python-multipart>=0.0.21
+# --- Monitoring ---
 prometheus-client==0.19.0
-shimmy>=1.3.0
 
-# --- Ajout nécessaire pour ton code ---
+# --- Hugging Face & config ---
 huggingface_hub
 python-dotenv
