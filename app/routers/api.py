@@ -119,7 +119,7 @@ def predict_move(state: GameState):
     observation = np.array(state.grid)
 
     # Prédiction
-    action, _ = manager.current_agent.predict(observation, deterministic=True)
+    action, _ = manager.current_agent.predict(observation, deterministic=False)
 
     # On renvoie l'action (int)
     return {"action": int(action)}

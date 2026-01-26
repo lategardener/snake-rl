@@ -5,6 +5,8 @@ from huggingface_hub import HfApi
 from dotenv import load_dotenv
 from huggingface_hub import hf_hub_download
 
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
 load_dotenv()
 hf_token = os.getenv("HF_HUB_TOKEN")
 if not hf_token:
@@ -14,7 +16,7 @@ if not hf_token:
 
 def list_snake_models(
     grid_size_filter: int = None,
-    sort_by: str = "date",  
+    sort_by: str = "date",
     hf_repo_id: str = "snakeRL/snake-rl-models"
 ):
     print(f"🔍 Recherche des modèles dans {hf_repo_id}...")

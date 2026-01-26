@@ -191,3 +191,47 @@ canvas {
     color: black;
     box-shadow: 0 0 20px var(--neon-blue);
 }
+
+/* --- Nouveaux Styles pour les Catégories --- */
+
+.grid-category-header {
+    width: 100%;
+    padding: 10px 0;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: var(--neon-blue);
+    background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.1), transparent);
+    border-top: 1px solid rgba(0, 243, 255, 0.2);
+    border-bottom: 1px solid rgba(0, 243, 255, 0.2);
+    letter-spacing: 3px;
+    text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+    position: relative;
+}
+
+/* Petit effet visuel cybernétique sur les côtés */
+.grid-category-header::before, .grid-category-header::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 5px;
+    height: 5px;
+    background: var(--neon-blue);
+    box-shadow: 0 0 5px var(--neon-blue);
+    transform: translateY(-50%) rotate(45deg);
+}
+.grid-category-header::before { left: 10px; }
+.grid-category-header::after { right: 10px; }
+
+/* Style pour le bouton Pause (variation jaune/orange pour distinguer) */
+.btn-warning {
+    border-color: #ffaa00;
+    color: #ffaa00;
+}
+.btn-warning:hover {
+    background: #ffaa00;
+    color: black;
+    box-shadow: 0 0 20px #ffaa00;
+}
