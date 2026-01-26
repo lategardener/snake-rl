@@ -55,7 +55,11 @@
                 <div class="action-display">
                     ACTION: <span id="ia-action" class="action-value">-</span>
                 </div>
-                <button onclick="resetGame()" class="neon-btn">REBOOT SYSTEM</button>
+
+                <div class="btn-group" style="display:flex; gap:10px;">
+                    <button id="pause-btn" onclick="togglePause()" class="neon-btn btn-warning" disabled>PAUSE</button>
+                    <button onclick="resetGame()" class="neon-btn">REBOOT SYSTEM</button>
+                </div>
             </div>
         </main>
     </div>
