@@ -33,3 +33,25 @@ services:
     depends_on:
       - prometheus
     restart: always
+
+  # MLflow : Serveur de tracking et gestion des modèles
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    container_name: mlflow-server
+    ports:
+      - "5050:5000"
+    environment:
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
+    volumes:
+      - ./mlflow_data/artifacts:/app/artifacts
+    # Format liste pour éviter les erreurs de parsing YAML
+    command: [
+      "mlflow", "server", 
+      "--backend-store-uri", "${MLFLOW_TRACKING_URI}", 
+      "--artifacts-destination", "/app/artifacts", 
+      "--host", "0.0.0.0",
+      "--allowed-hosts", "*"
+    ]
+    restart: always
