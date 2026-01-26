@@ -1,0 +1,6 @@
+mlflow==3.8.1
+stable-baselines3
+huggingface_hub
+gymnasium
+shimmy
+numpy
