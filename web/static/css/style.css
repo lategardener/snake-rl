@@ -211,7 +211,6 @@ canvas {
     position: relative;
 }
 
-/* Petit effet visuel cybernétique sur les côtés */
 .grid-category-header::before, .grid-category-header::after {
     content: '';
     position: absolute;
@@ -225,7 +224,6 @@ canvas {
 .grid-category-header::before { left: 10px; }
 .grid-category-header::after { right: 10px; }
 
-/* Style pour le bouton Pause (variation jaune/orange pour distinguer) */
 .btn-warning {
     border-color: #ffaa00;
     color: #ffaa00;
@@ -234,4 +232,48 @@ canvas {
     background: #ffaa00;
     color: black;
     box-shadow: 0 0 20px #ffaa00;
+}
+
+/* --- BRAIN VISUALIZATION (NOUVEAU) --- */
+.brain-panel {
+    width: 100%;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 20px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.prob-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.prob-label {
+    width: 40px;
+    font-size: 0.7rem;
+    font-family: var(--font-display);
+    color: var(--text-muted);
+    text-align: right;
+}
+
+.prob-track {
+    flex-grow: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.prob-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--neon-blue);
+    box-shadow: 0 0 8px var(--neon-blue);
+    transition: width 0.1s ease-out, background-color 0.2s;
 }

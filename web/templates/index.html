@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Snake AI • Neural Arcade</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="./static/css/style.css">
 </head>
 <body>
 
@@ -47,6 +47,25 @@
                 </div>
             </div>
 
+            <div class="brain-panel">
+                <div class="prob-group">
+                    <span class="prob-label">UP</span>
+                    <div class="prob-track"><div id="prob-up" class="prob-fill"></div></div>
+                </div>
+                <div class="prob-group">
+                    <span class="prob-label">DOWN</span>
+                    <div class="prob-track"><div id="prob-down" class="prob-fill"></div></div>
+                </div>
+                <div class="prob-group">
+                    <span class="prob-label">LEFT</span>
+                    <div class="prob-track"><div id="prob-left" class="prob-fill"></div></div>
+                </div>
+                <div class="prob-group">
+                    <span class="prob-label">RIGHT</span>
+                    <div class="prob-track"><div id="prob-right" class="prob-fill"></div></div>
+                </div>
+            </div>
+
             <div class="controls">
                 <div class="status-indicator">
                     <div id="status-dot" class="dot"></div>
@@ -64,6 +83,6 @@
         </main>
     </div>
 
-    <script src="/static/js/game.js"></script>
+    <script src="./static/js/game.js"></script>
 </body>
 </html>

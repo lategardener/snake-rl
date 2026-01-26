@@ -1,13 +1,10 @@
 name: Deploy Frontend to Pages
 
 on:
-  # Se lance à chaque push sur main
   push:
     branches: ["main"]
-  # Permet de lancer manuellement depuis l'interface GitHub
   workflow_dispatch:
 
-# Permissions nécessaires pour modifier GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -30,8 +27,7 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      # ÉTAPE CRUCIALE : On prépare le dossier pour le web
-      # On copie 'static' et on sort 'index.html' de 'templates'
+      # Préparation : on copie le statique et on bouge l'index
       - name: Prepare Deployment
         run: |
           mkdir public
@@ -41,7 +37,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # On déploie uniquement ce dossier temporaire 'public'
           path: 'public'
 
       - name: Deploy to GitHub Pages

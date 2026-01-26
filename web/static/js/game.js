@@ -1,3 +1,6 @@
+// CORRECTION CRITIQUE : URL absolue vers Render
+const API_BASE_URL = "https://snake-rl.onrender.com";
+
 const canvas = document.getElementById('snakeCanvas');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
@@ -7,7 +10,7 @@ const overlayEl = document.getElementById('overlay');
 const activeModelNameEl = document.getElementById('active-model-name');
 const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
-const pauseBtn = document.getElementById('pause-btn'); // Nouveau bouton
+const pauseBtn = document.getElementById('pause-btn');
 
 let GRID_SIZE = 10;
 let CELL_SIZE = canvas.width / GRID_SIZE;
@@ -16,18 +19,17 @@ let snake = [];
 let food = {};
 let score = 0;
 let isPlaying = false;
-let isPaused = false; // Nouvelle variable d'état
+let isPaused = false;
 let gameLoopInterval = null;
 
 // --- Initialisation ---
 async function init() {
     loadModels();
 
-    // Ajout du contrôle clavier pour la pause (Espace)
     document.addEventListener('keydown', (e) => {
         if (e.code === 'Space' && isPlaying) {
             togglePause();
-            e.preventDefault(); // Empêche le scroll
+            e.preventDefault();
         }
     });
 }
@@ -35,40 +37,32 @@ async function init() {
 // --- 1. Gestion des Modèles ---
 async function loadModels() {
     try {
-        const res = await fetch('/api/models');
+        // Fetch vers Render (URL absolue)
+        const res = await fetch(`${API_BASE_URL}/api/models`);
         const models = await res.json();
 
         modelListEl.innerHTML = '';
-
-        // A. Grouper les modèles par grid_size
         const groupedModels = {};
         models.forEach(model => {
-            if (!groupedModels[model.grid_size]) {
-                groupedModels[model.grid_size] = [];
-            }
+            if (!groupedModels[model.grid_size]) groupedModels[model.grid_size] = [];
             groupedModels[model.grid_size].push(model);
         });
 
-        // B. Trier les tailles de grille (petit vers grand)
         const sortedGridSizes = Object.keys(groupedModels).sort((a, b) => parseInt(a) - parseInt(b));
 
-        // C. Afficher les bannières et les cartes
         if (sortedGridSizes.length === 0) {
             modelListEl.innerHTML = '<div style="text-align:center; margin-top:20px;">No models found</div>';
             return;
         }
 
         sortedGridSizes.forEach(size => {
-            // 1. Créer la bannière lumineuse
             const header = document.createElement('div');
             header.className = 'grid-category-header';
             header.innerHTML = `GRID SYSTEM [ ${size}x${size} ]`;
             modelListEl.appendChild(header);
 
-            // 2. Trier les modèles de cette grille par reward (meilleur en haut)
             groupedModels[size].sort((a, b) => (b.reward || 0) - (a.reward || 0));
 
-            // 3. Créer les cartes
             groupedModels[size].forEach(model => {
                 const card = document.createElement('div');
                 card.className = 'model-card';
@@ -92,18 +86,17 @@ async function loadModels() {
 }
 
 async function selectModel(model, cardElement) {
-    // UI Update
     document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
     cardElement.classList.add('active');
 
     activeModelNameEl.innerText = `LOADING ${model.uuid.substring(0, 8)}...`;
     statusText.innerText = "DOWNLOADING...";
-    statusDot.className = "dot"; // rouge
-    pauseBtn.disabled = true; // Désactiver pause pendant chargement
+    statusDot.className = "dot";
+    pauseBtn.disabled = true;
 
-    // Server Call
     try {
-        const res = await fetch('/api/load', {
+        // Fetch vers Render (URL absolue)
+        const res = await fetch(`${API_BASE_URL}/api/load`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ uuid: model.uuid, grid_size: model.grid_size })
@@ -117,8 +110,7 @@ async function selectModel(model, cardElement) {
             activeModelNameEl.innerHTML += ` <span style="font-size:0.5em; color:var(--neon-pink)">[${model.grid_size}x${model.grid_size}]</span>`;
 
             overlayEl.style.display = 'none';
-            pauseBtn.disabled = false; // Activer le bouton pause
-
+            pauseBtn.disabled = false;
             resetGame();
         } else {
             alert("Erreur chargement modèle");
@@ -133,14 +125,12 @@ async function selectModel(model, cardElement) {
 
 function togglePause() {
     if (!isPlaying) return;
-
     isPaused = !isPaused;
 
     if (isPaused) {
         statusText.innerText = "SYSTEM PAUSED";
         statusText.style.color = "#ffaa00";
         pauseBtn.innerText = "RESUME";
-        // Petit effet visuel sur le canvas pour montrer la pause
         ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "white";
@@ -151,7 +141,6 @@ function togglePause() {
         statusText.innerText = "ONLINE - RUNNING";
         statusText.style.color = "var(--text-main)";
         pauseBtn.innerText = "PAUSE";
-        // On redessine tout de suite pour effacer le texte "PAUSED"
         draw();
     }
 }
@@ -159,24 +148,26 @@ function togglePause() {
 function resetGame() {
     if (gameLoopInterval) clearInterval(gameLoopInterval);
 
-    // Reset variables
     snake = [{x: Math.floor(GRID_SIZE/2), y: Math.floor(GRID_SIZE/2)}];
     score = 0;
     scoreEl.innerText = score;
-    isPaused = false; // Important : on enlève la pause au reset
+    isPaused = false;
     isPlaying = true;
 
-    // Reset UI
     statusText.innerText = "ONLINE - RUNNING";
     statusText.style.color = "var(--text-main)";
     statusDot.className = "dot active";
     pauseBtn.innerText = "PAUSE";
     pauseBtn.disabled = false;
 
+    // Reset des barres de proba
+    updateBrainBar('prob-up', 0);
+    updateBrainBar('prob-down', 0);
+    updateBrainBar('prob-left', 0);
+    updateBrainBar('prob-right', 0);
+
     placeFood();
     draw();
-
-    // Démarrage de la boucle IA
     gameLoopInterval = setInterval(gameStep, 150);
 }
 
@@ -192,32 +183,37 @@ function placeFood() {
 }
 
 async function gameStep() {
-    // Si pas en jeu OU si en PAUSE, on ne fait rien
     if (!isPlaying || isPaused) return;
 
-    // A. Construire la grille pour l'IA
     let grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
     snake.forEach(p => grid[p.y][p.x] = 1);
     grid[food.y][food.x] = 2;
 
-    // B. Demander l'action
     try {
-        const res = await fetch('/api/predict', {
+        // Fetch vers Render (URL absolue)
+        const res = await fetch(`${API_BASE_URL}/api/predict`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ grid: grid })
         });
 
-        if (!res.ok) return; // Sécurité si serveur down
+        if (!res.ok) return;
 
         const data = await res.json();
-
-        // Vérif double : si l'utilisateur a mis pause PENDANT la requête fetch (asynchrone)
         if (isPaused || !isPlaying) return;
 
         const action = data.action;
         const actionsLabel = ["UP", "DOWN", "LEFT", "RIGHT"];
         actionEl.innerText = actionsLabel[action];
+
+        // NOUVEAU : Mise à jour des barres de visualisation
+        if (data.probabilities) {
+            // Ordre : 0=Haut, 1=Bas, 2=Gauche, 3=Droite
+            updateBrainBar('prob-up', data.probabilities[0]);
+            updateBrainBar('prob-down', data.probabilities[1]);
+            updateBrainBar('prob-left', data.probabilities[2]);
+            updateBrainBar('prob-right', data.probabilities[3]);
+        }
 
         moveSnake(action);
         draw();
@@ -227,15 +223,33 @@ async function gameStep() {
     }
 }
 
+// Fonction utilitaire pour l'animation des barres
+function updateBrainBar(elementId, probability) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const percent = (probability * 100).toFixed(1);
+    el.style.width = percent + '%';
+
+    if (probability > 0.8) {
+        el.style.backgroundColor = 'var(--neon-green)';
+        el.style.boxShadow = '0 0 10px var(--neon-green)';
+    } else if (probability < 0.1) {
+        el.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+        el.style.boxShadow = 'none';
+    } else {
+        el.style.backgroundColor = 'var(--neon-blue)';
+        el.style.boxShadow = '0 0 10px var(--neon-blue)';
+    }
+}
+
 function moveSnake(action) {
     let head = { ...snake[0] };
-
     if (action === 0) head.y -= 1;
     if (action === 1) head.y += 1;
     if (action === 2) head.x -= 1;
     if (action === 3) head.x += 1;
 
-    // Collisions
     if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE ||
         snake.some(p => p.x === head.x && p.y === head.y)) {
         gameOver();
@@ -243,7 +257,6 @@ function moveSnake(action) {
     }
 
     snake.unshift(head);
-
     if (head.x === food.x && head.y === food.y) {
         score++;
         scoreEl.innerText = score;
@@ -256,18 +269,14 @@ function moveSnake(action) {
 function gameOver() {
     isPlaying = false;
     clearInterval(gameLoopInterval);
-
     statusText.innerText = "GAME OVER";
-    statusDot.className = "dot"; // Rouge
-    pauseBtn.disabled = true; // On ne peut pas mettre en pause si mort
-
+    statusDot.className = "dot";
+    pauseBtn.disabled = true;
     ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
     ctx.fillRect(0,0, canvas.width, canvas.height);
 }
 
-// --- 3. Rendu Graphique (Canvas) ---
 function draw() {
-    // (Identique à ton code précédent)
     ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -282,7 +291,6 @@ function draw() {
         ctx.stroke();
     }
 
-    // Glow effect
     ctx.shadowBlur = 15;
     ctx.shadowColor = "#bc13fe";
     ctx.fillStyle = "#bc13fe";
