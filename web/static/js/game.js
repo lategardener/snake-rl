@@ -88,7 +88,7 @@ function toggleFoodPlanning() {
         btn.innerText = "WAITING FOR EAT...";
     } else {
         btn.classList.remove('armed');
-        btn.innerText = "🍎 PLAN NEXT FOOD";
+        btn.innerText = "PLAN NEXT FOOD";
         if (isPlacingFood) {
             isPlacingFood = false;
             isPlaying = true;
@@ -111,7 +111,7 @@ function activateWallMode() {
         btn.innerText = "CLICK ON GRID";
     } else {
         btn.classList.remove('placing');
-        btn.innerText = "🧱 DROP WALL (2s)";
+        btn.innerText = "DROP WALL";
     }
 }
 
@@ -140,7 +140,7 @@ function startWallCooldown() {
             canPlaceWall = true;
             bar.style.width = "0%";
             btn.classList.remove('cooldown');
-            btn.innerText = "🧱 DROP WALL (2s)";
+            btn.innerText = "DROP WALL";
         }
     }, interval);
 }
