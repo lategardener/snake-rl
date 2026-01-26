@@ -190,12 +190,4 @@ def train_snake(
                 """)
             mlflow.set_tag("mlflow.note.content", note)
 
-            model_wrapper = SnakeHFModel(repo_id=hf_repo_id, subfolder=hf_folder)
-            model_info = mlflow.pyfunc.log_model(
-                name="snake_model",
-                python_model=model_wrapper,
-                pip_requirements=["stable-baselines3", "huggingface_hub", "gymnasium", "shimmy", "numpy"]
-            )
-            mlflow.register_model(model_uri=model_info.model_uri, name=f"Snake_{grid_size}x{grid_size}")
-
             print(f"Terminé ! Modèle {game_mode} dispo : {new_agent_uuid}")

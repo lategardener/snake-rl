@@ -40,4 +40,4 @@ Le panneau **"Brain Visualization"** à droite vous montre en temps réel ce que
 * **Hébergement :** Render & Hugging Face
 
 ---
-*Projet réalisé par [Ton Nom]*
+*Projet réalisé par Marc DJOLE & Sonny BERTHELOT*
