@@ -1,43 +1,43 @@
-# Snake RL
+#  Neural Snake • AI Arcade
 
-Projet Snake entraîné avec Reinforcement Learning (PPO). CPU-only.
+**Bienvenue dans l'arène de l'Intelligence Artificielle.**
+Ici, ce n'est pas vous qui jouez au Snake. C'est une IA que j'ai entraînée qui joue pour vous.
+
+Votre rôle ? **L'observer, l'analyser... et la piéger.**
 
 ---
 
-## Installation
+##  [CLIQUER ICI POUR JOUER](https://snake-rl.onrender.com)
 
-1. Création d'un environnement virtuel (optionnel mais recommandé) :
+---
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
+## 🎮 Comment ça marche ?
 
-2. Installation des dépendances :
+Ce projet utilise le **Deep Reinforcement Learning** (Apprentissage par Renforcement). Le serpent a appris tout seul à jouer en faisant des millions d'essais et d'erreurs. Il "voit" la grille et décide de la meilleure action (Haut, Bas, Gauche, Droite) pour maximiser son score.
 
-# Créer et activer un venv
-python3 -m venv .venv
-source .venv/bin/activate
+### 1. Choisissez votre Champion
+Dans le menu de gauche, sélectionnez un **Agent**.
+* **Classic :** Un agent entraîné sur le jeu standard. Il est prudent et efficace.
+* **Walls (God Mode) :** Un agent entraîné à survivre avec des murs dynamiques. Il est plus paranoïaque et robuste.
 
-Mettre pip à jour
-```
-python3 -m pip install --upgrade pip
-```
+### 2. Devenez le Maître du Jeu
+Vous ne contrôlez pas le serpent, mais vous contrôlez son environnement ! Utilisez les **Outils Interactifs** pour le tester :
 
-Installer PyTorch CPU (remplacez la ligne si une autre version est requise)
-```
-pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
-```
+* **Plan Next Food :** Au prochain repas, le jeu se fige. C'est à VOUS de cliquer sur la grille pour placer la prochaine pomme. Mettez-la dans un coin difficile pour voir si l'IA s'en sort !
+*  **Drop Wall :** *(Uniquement avec les agents 'Walls')* Faites apparaître un mur temporaire devant le serpent pour le forcer à réagir en urgence.
 
-Installer stable-baselines3, gymnasium et libs usuelles
-```
-pip install stable-baselines3 gymnasium numpy pandas
-```
+### 3. Lisez dans ses pensées
+Le panneau **"Brain Visualization"** à droite vous montre en temps réel ce que l'IA pense.
+* Les barres colorées indiquent la probabilité qu'elle choisisse une direction.
+* Si une barre est verte, elle est sûre d'elle. Si toutes sont basses, elle panique !
 
+---
 
-lien repo : https://lategardener.github.io/snake-rl/
+## 🛠️ Technologies
+* **Cerveau :** PyTorch & Stable Baselines 3 (PPO Algorithm)
+* **Interface :** HTML5 / Canvas / JavaScript
+* **Backend :** FastAPI (Python)
+* **Hébergement :** Render & Hugging Face
 
-
-
-
-
+---
+*Projet réalisé par [Ton Nom]*
