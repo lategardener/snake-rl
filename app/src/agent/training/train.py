@@ -14,7 +14,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.utils import safe_mean
 
-# Imports locaux (Assure-toi que les chemins sont bons)
+# Imports locaux
 from app.src.env.snake_env import SnakeEnv
 from app.src.agent.utils.mlflow_wrapper import SnakeHFModel
 from app.src.agent.utils.callbacks import MLflowLoggingCallback
@@ -63,7 +63,7 @@ def train_snake(
             is_finetuning = True
             mode_label = "FINE-TUNING"
 
-            # 2. Récupération des métadonnées (n_envs et game_mode)
+            # 2. Récupération des métadonnées pour le game_mode
             try:
                 model_folder = f"{grid_size}x{grid_size}/{base_uuid}"
                 meta_path = hf_hub_download(
@@ -74,21 +74,19 @@ def train_snake(
                 with open(meta_path, 'r') as f:
                     old_meta = json.load(f)
 
-                # Récupération n_envs
                 if "n_envs" in old_meta:
                     n_envs = old_meta["n_envs"]
-                    print(f"🔄 Reprise avec n_envs={n_envs}")
 
-                # Récupération game_mode (NOUVEAU)
+                # RECUPERATION CRITIQUE DU MODE DE JEU
                 if "game_mode" in old_meta:
                     prev_mode = old_meta["game_mode"]
-                    print(f"🔄 Mode de jeu détecté : {prev_mode}")
-                    game_mode = prev_mode  # On force le mode d'origine pour ne pas perdre l'apprentissage
+                    print(f"🔄 Mode de jeu détecté sur le parent : '{prev_mode}'. Application forcée.")
+                    game_mode = prev_mode
                 else:
-                    print(f"⚠️ 'game_mode' inconnu. Utilisation de : {game_mode}")
+                    print(f"⚠️ Pas de game_mode dans les métadonnées. Utilisation du paramètre : {game_mode}")
 
             except Exception as e:
-                print(f"⚠️ Impossible de lire les métadonnées ({e}). Paramètres par défaut utilisés.")
+                print(f"⚠️ Impossible de lire les métadonnées complètes ({e}).")
 
             print(f"✅ Modèle chargé. Grille {grid_size}x{grid_size}, Mode {game_mode}, {n_envs} envs.")
 
@@ -96,7 +94,6 @@ def train_snake(
             print(f"❌ Erreur critique chargement {base_uuid} : {e}")
             return
     else:
-        # Nouveau Run
         if grid_size is None:
             raise ValueError("⚠️ 'grid_size' requis pour un nouvel entraînement.")
         mode_label = "NEW_TRAINING"
@@ -112,7 +109,7 @@ def train_snake(
         # Tags
         mlflow.set_tag("agent_uuid", new_agent_uuid)
         mlflow.set_tag("hf_repo", hf_repo_id)
-        mlflow.set_tag("game_mode", game_mode)  # Tag important pour le tri
+        mlflow.set_tag("game_mode", game_mode)
         if base_uuid:
             mlflow.set_tag("parent_model_uuid", base_uuid)
 
@@ -121,13 +118,12 @@ def train_snake(
             "algorithm": algorithm,
             "grid_size": grid_size,
             "n_envs": n_envs,
-            "game_mode": game_mode,  # <--- Logué
+            "game_mode": game_mode,
             "timesteps": timesteps,
             "base_model": base_uuid if base_uuid else "None"
         })
 
         # --- CRÉATION ENVIRONNEMENT ---
-        # On passe le game_mode à SnakeEnv
         env = make_vec_env(
             lambda: Monitor(SnakeEnv(grid_size=grid_size, render_mode=None, game_mode=game_mode)),
             n_envs=n_envs
@@ -146,15 +142,13 @@ def train_snake(
             reset_num_timesteps=not is_finetuning
         )
 
-        # --- SAUVEGARDE & UPLOAD ---
+        # --- SAUVEGARDE ---
         print("\nSauvegarde...")
         with tempfile.TemporaryDirectory() as temp_dir_str:
             temp_dir = Path(temp_dir_str)
 
-            # 1. Modèle
             agent.save(temp_dir / "model.zip")
 
-            # 2. Métadonnées
             hf_folder = f"{grid_size}x{grid_size}/{new_agent_uuid}"
             final_reward = safe_mean([ep["r"] for ep in agent.ep_info_buffer]) if agent.ep_info_buffer else None
 
@@ -164,7 +158,7 @@ def train_snake(
                 "parent_uuid": base_uuid,
                 "grid_size": grid_size,
                 "n_envs": n_envs,
-                "game_mode": game_mode,  # <--- SAUVEGARDÉ POUR LE FRONTEND
+                "game_mode": game_mode,  # Sauvegarde du mode
                 "algorithm": algorithm,
                 "date": readable_date,
                 "final_mean_reward": final_reward,
@@ -175,7 +169,7 @@ def train_snake(
             with open(temp_dir / "metadata.json", "w") as f:
                 json.dump(metadata, f, indent=4)
 
-            # 3. Upload HF
+            # Upload HF
             api = HfApi(token=hf_token)
             api.create_repo(repo_id=hf_repo_id, repo_type="model", exist_ok=True, private=True)
             api.upload_folder(
@@ -185,23 +179,17 @@ def train_snake(
                 commit_message=f"Add {mode_label} model ({game_mode}) {new_agent_uuid}"
             )
 
-            # 4. Note MLflow
+            # Model Registry (Optionnel mais recommandé)
             hf_url = f"https://huggingface.co/{hf_repo_id}/tree/main/{hf_folder}"
-            zip_url = f"https://huggingface.co/{hf_repo_id}/resolve/main/{hf_folder}/model.zip?download=true"
-
             note = textwrap.dedent(f"""\
                 ### {mode_label} - Snake {grid_size}x{grid_size}
-
                 **ID :** `{new_agent_uuid}`
                 **Mode :** {game_mode.upper()} 
                 **Reward :** {final_reward}
-
                 [Voir sur Hugging Face]({hf_url})
                 """)
-
             mlflow.set_tag("mlflow.note.content", note)
 
-            # 5. Model Registry
             model_wrapper = SnakeHFModel(repo_id=hf_repo_id, subfolder=hf_folder)
             model_info = mlflow.pyfunc.log_model(
                 name="snake_model",
