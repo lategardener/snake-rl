@@ -19,7 +19,6 @@ let food = {};
 let score = 0;
 let isPlaying = false;
 let isPaused = false;
-// NOUVEAU : Variable pour l'état de mort
 let isDead = false;
 let gameLoopInterval = null;
 
@@ -42,6 +41,9 @@ async function init() {
     });
 
     canvas.addEventListener('mousedown', onCanvasClick);
+
+    // Initialisation état boutons
+    toggleGameMode();
 }
 
 // --- Gestion du Mode de Jeu ---
@@ -49,17 +51,35 @@ function toggleGameMode() {
     const checkbox = document.getElementById('mode-toggle');
     const label = document.getElementById('mode-label');
     const tools = document.getElementById('tools-container');
+    const wallBtn = document.getElementById('btn-tool-wall');
 
     godModeEnabled = checkbox.checked;
 
     if (godModeEnabled) {
+        // MODE AVANCÉ (WALLS)
         label.innerText = "GOD MODE (WALLS)";
         label.style.color = "var(--neon-pink)";
         tools.classList.remove('disabled');
+
+        // Active le bouton mur
+        wallBtn.classList.remove('locked');
+        wallBtn.disabled = false;
+
     } else {
+        // MODE CLASSIQUE
         label.innerText = "CLASSIC";
         label.style.color = "var(--text-muted)";
-        tools.classList.add('disabled');
+        tools.classList.add('disabled'); // Cache tout le panneau ou...
+        tools.classList.remove('disabled'); // ... laisse affiché mais restreint
+
+        // Force l'outil sur Food car Wall est interdit
+        selectTool('food');
+
+        // Désactive visuellement le bouton mur
+        wallBtn.classList.add('locked');
+        wallBtn.disabled = true;
+
+        // Nettoyage
         walls = [];
         wallTimer = 0;
         if (!isDead) draw();
@@ -67,6 +87,8 @@ function toggleGameMode() {
 }
 
 function selectTool(tool) {
+    if (tool === 'wall' && !godModeEnabled) return; // Sécurité
+
     currentTool = tool;
     document.getElementById('btn-tool-food').classList.remove('active');
     document.getElementById('btn-tool-wall').classList.remove('active');
@@ -75,7 +97,7 @@ function selectTool(tool) {
 
 // --- Interaction Clic ---
 function onCanvasClick(e) {
-    if (!godModeEnabled || !isPlaying || isPaused || isDead) return;
+    if (!isPlaying || isPaused || isDead) return;
 
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -87,12 +109,16 @@ function onCanvasClick(e) {
 
     if (col < 0 || col >= GRID_SIZE || row < 0 || row >= GRID_SIZE) return;
 
+    // Logique Outils
     if (currentTool === 'food') {
+        // Outil Pomme : Marche dans les deux modes
         if (!snake.some(p => p.x === col && p.y === row)) {
             food = {x: col, y: row};
             draw();
+            // Envoyer info au backend (si nécessaire pour sync)
         }
-    } else if (currentTool === 'wall') {
+    } else if (currentTool === 'wall' && godModeEnabled) {
+        // Outil Mur : Seulement en God Mode
         if (!snake.some(p => p.x === col && p.y === row) && !(food.x === col && food.y === row)) {
             walls = [{x: col, y: row}];
             wallTimer = WALL_DURATION + 1;
@@ -116,11 +142,6 @@ async function loadModels() {
 
         const sortedGridSizes = Object.keys(groupedModels).sort((a, b) => parseInt(a) - parseInt(b));
 
-        if (sortedGridSizes.length === 0) {
-            modelListEl.innerHTML = '<div style="text-align:center; margin-top:20px;">No models found</div>';
-            return;
-        }
-
         sortedGridSizes.forEach(size => {
             const header = document.createElement('div');
             header.className = 'grid-category-header';
@@ -132,15 +153,23 @@ async function loadModels() {
             groupedModels[size].forEach(model => {
                 const card = document.createElement('div');
                 card.className = 'model-card';
-                // Retrait des emojis dans le badge aussi pour être cohérent
-                const modeBadge = model.game_mode === 'walls' ? '[WALLS]' : '';
+
+                // --- 1. GESTION DES BADGES ---
+                let badgeHtml = '';
+                if (model.game_mode === 'walls') {
+                    badgeHtml = `<span class="mode-badge badge-walls">WALLS</span>`;
+                } else {
+                    badgeHtml = `<span class="mode-badge badge-classic">CLASSIC</span>`;
+                }
 
                 card.innerHTML = `
                     <div class="card-top">
-                        <span class="grid-badge">${model.algorithm || 'PPO'} ${modeBadge}</span>
-                        <span class="reward">R: ${model.reward ? model.reward.toFixed(2) : 'N/A'}</span>
+                        <span class="grid-badge">${model.algorithm || 'PPO'}</span>
+                        ${badgeHtml} </div>
+                    <div style="margin-top:5px; display:flex; justify-content:space-between;">
+                         <span class="uuid">${model.uuid.substring(0, 8)}...</span>
+                         <span class="reward">R: ${model.reward ? model.reward.toFixed(2) : 'N/A'}</span>
                     </div>
-                    <div class="uuid">${model.uuid.substring(0, 18)}...</div>
                     <span class="date">${model.date}</span>
                 `;
                 card.onclick = () => selectModel(model, card);
@@ -178,13 +207,8 @@ async function selectModel(model, cardElement) {
             overlayEl.style.display = 'none';
             pauseBtn.disabled = false;
             resetGame();
-        } else {
-            alert("Erreur chargement modèle");
         }
-    } catch (e) {
-        console.error(e);
-        activeModelNameEl.innerText = "ERROR LOADING";
-    }
+    } catch (e) { console.error(e); }
 }
 
 function resetGame() {
@@ -195,18 +219,16 @@ function resetGame() {
     scoreEl.innerText = score;
     isPaused = false;
     isPlaying = true;
-    // Reset état de mort
     isDead = false;
-
     walls = [];
     wallTimer = 0;
 
     statusText.innerText = "ONLINE - RUNNING";
     statusText.style.color = "var(--text-main)";
     statusDot.className = "dot active";
-    pauseBtn.innerText = "PAUSE";
     pauseBtn.disabled = false;
 
+    // Reset visuel
     updateBrainBar('prob-up', 0);
     updateBrainBar('prob-down', 0);
     updateBrainBar('prob-left', 0);
@@ -258,7 +280,9 @@ async function gameStep() {
         const actionsLabel = ["UP", "DOWN", "LEFT", "RIGHT"];
         actionEl.innerText = actionsLabel[action];
 
+        // --- 3. GESTION DES PROBABILITÉS ---
         if (data.probabilities) {
+            // Mapping : 0=Haut, 1=Bas, 2=Gauche, 3=Droite (Vérifier selon ton Env)
             updateBrainBar('prob-up', data.probabilities[0]);
             updateBrainBar('prob-down', data.probabilities[1]);
             updateBrainBar('prob-left', data.probabilities[2]);
@@ -268,25 +292,27 @@ async function gameStep() {
         moveSnake(action);
         draw();
 
-    } catch (e) {
-        console.error("Erreur Prediction", e);
-    }
+    } catch (e) { console.error("Erreur Prediction", e); }
 }
 
 function updateBrainBar(elementId, probability) {
     const el = document.getElementById(elementId);
     if (!el) return;
+
+    // Animation fluide
     const percent = (probability * 100).toFixed(1);
     el.style.width = percent + '%';
+
+    // Code couleur confiance
     if (probability > 0.8) {
         el.style.backgroundColor = 'var(--neon-green)';
         el.style.boxShadow = '0 0 10px var(--neon-green)';
-    } else if (probability < 0.1) {
-        el.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+    } else if (probability < 0.05) {
+        el.style.backgroundColor = 'rgba(255, 0, 0, 0.2)'; // Quasi invisible
         el.style.boxShadow = 'none';
     } else {
         el.style.backgroundColor = 'var(--neon-blue)';
-        el.style.boxShadow = '0 0 10px var(--neon-blue)';
+        el.style.boxShadow = '0 0 5px var(--neon-blue)';
     }
 }
 
@@ -317,18 +343,12 @@ function moveSnake(action) {
 
 function gameOver() {
     isPlaying = false;
-    // Activation de l'état de mort
     isDead = true;
     clearInterval(gameLoopInterval);
-
     statusText.innerText = "GAME OVER";
     statusDot.className = "dot";
     pauseBtn.disabled = true;
-
-    // On redessine une dernière fois pour voir la tête rouge
     draw();
-
-    // Ajout du filtre rouge par dessus
     ctx.fillStyle = "rgba(255, 0, 0, 0.4)";
     ctx.fillRect(0,0, canvas.width, canvas.height);
 }
@@ -348,37 +368,35 @@ function draw() {
         ctx.stroke();
     }
 
-    // --- MODIFICATION : MURS EN BLANC ---
+    // MURS
     walls.forEach(w => {
-        ctx.fillStyle = "#ffffff"; // Blanc pur
-        ctx.shadowBlur = 15;       // Glow blanc
+        ctx.fillStyle = "#ffffff";
+        ctx.shadowBlur = 15;
         ctx.shadowColor = "#ffffff";
         ctx.fillRect(w.x * CELL_SIZE + 1, w.y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
-        ctx.shadowBlur = 0; // Reset du glow
+        ctx.shadowBlur = 0;
     });
 
-    // Nourriture (Reste Rose/Violet)
+    // FOOD
     ctx.shadowBlur = 15;
     ctx.shadowColor = "#bc13fe";
     ctx.fillStyle = "#bc13fe";
     ctx.fillRect(food.x * CELL_SIZE + 2, food.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
     ctx.shadowBlur = 0;
 
-    // Serpent
+    // SNAKE
     snake.forEach((part, index) => {
         if (index === 0) {
-            // --- MODIFICATION : TÊTE ROUGE SI MORT ---
             if (isDead) {
-                ctx.fillStyle = "#ff0000"; // Rouge fatal
+                ctx.fillStyle = "#ff0000";
                 ctx.shadowBlur = 25;
                 ctx.shadowColor = "#ff0000";
             } else {
-                ctx.fillStyle = "#00f3ff"; // Bleu normal
+                ctx.fillStyle = "#00f3ff";
                 ctx.shadowBlur = 20;
                 ctx.shadowColor = "#00f3ff";
             }
         } else {
-            // Corps
             ctx.fillStyle = "rgba(0, 243, 255, 0.6)";
             ctx.shadowBlur = 0;
         }

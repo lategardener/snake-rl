@@ -376,3 +376,35 @@ input:checked + .slider:before { transform: translateX(26px); }
 }
 
 .instruction { font-size: 0.7rem; color: var(--text-muted); font-style: italic; }
+
+
+/* --- NOUVEAU : Badges de Mode --- */
+.mode-badge {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 5px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    border: 1px solid transparent;
+}
+
+.badge-classic {
+    background: rgba(0, 243, 255, 0.1);
+    color: var(--neon-blue);
+    border-color: var(--neon-blue);
+}
+
+.badge-walls {
+    background: rgba(188, 19, 254, 0.1);
+    color: var(--neon-pink);
+    border-color: var(--neon-pink);
+}
+
+/* --- Gestion des Outils --- */
+/* Quand un bouton est désactivé (ex: Mur en mode Classic) */
+.tool-btn.locked {
+    opacity: 0.2;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+}

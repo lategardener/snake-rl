@@ -1,3 +1,4 @@
+import torch
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Any
@@ -135,19 +136,35 @@ async def start_game_metric(req: StartGameRequest):
     GAMES_STARTED_COUNTER.labels(grid_size=str(req.grid_size)).inc()
     return {"status": "metric_updated"}
 
+
 @router.post("/predict")
 def predict_move(state: GameState):
-    """Prédit le prochain mouvement basé sur la grille envoyée par le JS."""
+    """
+    Prédit le prochain mouvement ET renvoie les probabilités.
+    """
     if not manager.current_agent:
-        raise HTTPException(status_code=400, detail="Aucun modèle chargé. Veuillez en sélectionner un.")
+        # Si pas d'agent, on renvoie une action par défaut (ex: Haut)
+        return {"action": 0, "probabilities": [0.25, 0.25, 0.25, 0.25]}
 
-    # Conversion de la grille JS (List[List]) en Array NumPy compatible
-    # Attention: Il faut que la shape corresponde à ce que le modèle attend
-    # Pour un CNNPolicy ou MlpPolicy, il faut souvent adapter la shape
+    # 1. Conversion de la grille reçue du JS
     observation = np.array(state.grid)
 
-    # Prédiction
-    action, _ = manager.current_agent.predict(observation, deterministic=False)
+    # 2. Prédiction de l'action (Déterministe pour le jeu)
+    action, _ = manager.current_agent.predict(observation, deterministic=True)
 
-    # On renvoie l'action (int)
-    return {"action": int(action)}
+    # 3. Calcul des Probabilités (Pour la visualisation "Cerveau")
+    # On doit utiliser PyTorch directement pour extraire la distribution interne
+    probs = []
+    try:
+        with torch.no_grad():
+            obs_tensor = manager.current_agent.policy.obs_to_tensor(observation)[0]
+            distribution = manager.current_agent.policy.get_distribution(obs_tensor)
+            probs = distribution.distribution.probs.cpu().numpy()[0].tolist()
+    except Exception as e:
+        print(f"Erreur calcul probabilités: {e}")
+        probs = [0.0, 0.0, 0.0, 0.0]  # Fallback si erreur
+
+    return {
+        "action": int(action),
+        "probabilities": probs
+    }
