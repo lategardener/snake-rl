@@ -19,6 +19,9 @@ from app.src.agent.utils.mlflow_wrapper import SnakeHFModel
 from app.src.agent.utils.callbacks import MLflowLoggingCallback
 from app.src.agent.utils.loading import load_snake_model_data
 
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
+
 load_dotenv()
 hf_token = os.getenv("HF_HUB_TOKEN")
 if not hf_token:
@@ -30,7 +33,7 @@ def train_snake(
         grid_size: int = None,
         n_envs: int = 4,
         algorithm: str = "PPO",
-        hf_repo_id: str = "snakeRL/snake-rl-modelss",
+        hf_repo_id: str = "snakeRL/snake-rl-models",
         base_uuid: str = None
 ):
     # Initialisation des variables de temps et d'ID
