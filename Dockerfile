@@ -1,7 +1,5 @@
 FROM python:3.10-slim
 
-USER root
-RUN apt-get update && apt-get upgrade -y libexpat1 && rm -rf /var/lib/apt/lists/*
 # Optimisations Python
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
