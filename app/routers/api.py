@@ -6,7 +6,8 @@ import json
 import numpy as np
 from huggingface_hub import HfApi, hf_hub_download
 from stable_baselines3 import PPO
-
+from dotenv import load_dotenv
+load_dotenv()
 
 # --- Modèles de données (Pydantic) ---
 class GameState(BaseModel):
