@@ -1,0 +1,19 @@
+artifact_path: /home/cytech/programmation/AI/snake_rl/app/src/agent/training/mlruns/1/models/m-200a9e407c2b4c14a5e54e6adf6eca37/artifacts
+flavors:
+  python_function:
+    cloudpickle_version: 3.1.2
+    code: null
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pyfunc.model
+    python_model: python_model.pkl
+    python_version: 3.10.12
+    streamable: false
+mlflow_version: 3.8.1
+model_id: m-200a9e407c2b4c14a5e54e6adf6eca37
+model_size_bytes: 283
+model_uuid: m-200a9e407c2b4c14a5e54e6adf6eca37
+prompts: null
+run_id: 901446b9d1b94643a033718ba2656577
+utc_time_created: '2026-01-26 10:56:42.896485'
