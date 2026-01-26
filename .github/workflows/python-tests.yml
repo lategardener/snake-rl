@@ -1,0 +1,37 @@
+name: Snake RL CI/CD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        # Installation des dépendances du projet
+        pip install -r requirements.txt
+        # Dépendances spécifiques aux tests
+        pip install pytest httpx
+
+    - name: Run tests with pytest
+      env:
+        # On définit le PYTHONPATH sur la racine pour que 'app' soit importable
+        PYTHONPATH: ${{ github.workspace }}
+        # Token fictif pour les tests (évite les erreurs au chargement de l'API)
+        HF_HUB_TOKEN: "mock_token"
+      run: |
+        python -m pytest tests/
