@@ -145,9 +145,21 @@ function togglePause() {
     }
 }
 
-function resetGame() {
+async function resetGame() {
     if (gameLoopInterval) clearInterval(gameLoopInterval);
 
+     try {
+        // Maintenant, l'await fonctionnera sans erreur de syntaxe
+        await fetch('/api/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ grid_size: GRID_SIZE })
+        });
+    } catch (e) {
+        console.error("Erreur métrique Prometheus:", e);
+    }
+    
+    
     snake = [{x: Math.floor(GRID_SIZE/2), y: Math.floor(GRID_SIZE/2)}];
     score = 0;
     scoreEl.innerText = score;
