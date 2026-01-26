@@ -1,0 +1,48 @@
+name: Deploy Frontend to Pages
+
+on:
+  # Se lance à chaque push sur main
+  push:
+    branches: ["main"]
+  # Permet de lancer manuellement depuis l'interface GitHub
+  workflow_dispatch:
+
+# Permissions nécessaires pour modifier GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # ÉTAPE CRUCIALE : On prépare le dossier pour le web
+      # On copie 'static' et on sort 'index.html' de 'templates'
+      - name: Prepare Deployment
+        run: |
+          mkdir public
+          cp -r web/static public/
+          cp web/templates/index.html public/index.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # On déploie uniquement ce dossier temporaire 'public'
+          path: 'public'
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
