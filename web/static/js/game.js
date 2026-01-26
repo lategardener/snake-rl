@@ -80,7 +80,7 @@ function toggleFoodPlanning() {
         btn.innerText = "WAITING FOR EAT...";
     } else {
         btn.classList.remove('armed');
-        btn.innerText = "🍎 PLAN NEXT FOOD";
+        btn.innerText = "PLAN NEXT FOOD";
         // Si on annule alors qu'on était déjà en train de placer
         if (isPlacingFood) {
             isPlacingFood = false;
@@ -103,7 +103,7 @@ function activateWallMode() {
         btn.innerText = "CLICK ON GRID";
     } else {
         btn.classList.remove('placing');
-        btn.innerText = "🧱 DROP WALL (2s)";
+        btn.innerText = "DROP WALL ";
     }
 }
 
