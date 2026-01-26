@@ -408,3 +408,66 @@ input:checked + .slider:before { transform: translateX(26px); }
     cursor: not-allowed;
     filter: grayscale(100%);
 }
+
+
+
+.wide-btn {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 5px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* État "Armé" pour la pomme */
+.tool-btn.armed {
+    background: rgba(188, 19, 254, 0.2);
+    border-color: var(--neon-pink);
+    color: var(--neon-pink);
+    box-shadow: 0 0 10px var(--neon-pink);
+    animation: pulse 1.5s infinite;
+}
+
+/* État "En attente de clic sur grille" */
+.tool-btn.placing {
+    background: var(--neon-green);
+    color: black;
+    border-color: var(--neon-green);
+}
+
+/* État "Cooldown" pour le mur */
+.tool-btn.cooldown {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #333;
+    border-color: #555;
+    color: #888;
+}
+
+/* Barre de progression du cooldown */
+.cooldown-bar {
+    height: 4px;
+    background: var(--neon-blue);
+    width: 0%;
+    transition: width 0.1s linear;
+    box-shadow: 0 0 5px var(--neon-blue);
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 5px var(--neon-pink); }
+    50% { box-shadow: 0 0 15px var(--neon-pink); }
+    100% { box-shadow: 0 0 5px var(--neon-pink); }
+}
+
+/* Badges */
+.mode-badge {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 5px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    border: 1px solid transparent;
+}
+.badge-classic { background: rgba(0, 243, 255, 0.1); color: var(--neon-blue); border-color: var(--neon-blue); }
+.badge-walls { background: rgba(188, 19, 254, 0.1); color: var(--neon-pink); border-color: var(--neon-pink); }

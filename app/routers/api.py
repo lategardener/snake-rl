@@ -142,14 +142,13 @@ def predict_move(state: GameState):
     if not manager.current_agent:
         return {"action": 0, "probabilities": [0.0, 0.0, 0.0, 0.0]}
 
-    # --- CORRECTION 2 : Préparation rigoureuse des données pour PyTorch ---
-    # 1. Conversion en float32 (important pour les réseaux de neurones)
+    # Conversion en float32 
     observation = np.array(state.grid, dtype=np.float32)
 
-    # 2. Prédiction de l'action
+    # Prédiction de l'action
     action, _ = manager.current_agent.predict(observation, deterministic=True)
 
-    # 3. Calcul des Probabilités
+    # Calcul des Probabilités
     probs = [0.0, 0.0, 0.0, 0.0]
     try:
         with torch.no_grad():
