@@ -19,6 +19,9 @@ from app.src.agent.utils.mlflow_wrapper import SnakeHFModel
 from app.src.agent.utils.callbacks import MLflowLoggingCallback
 from app.src.agent.utils.loading import load_snake_model_data
 
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
+
 load_dotenv()
 hf_token = os.getenv("HF_HUB_TOKEN")
 if not hf_token:
