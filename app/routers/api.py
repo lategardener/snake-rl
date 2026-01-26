@@ -38,7 +38,7 @@ class ModelInfo(BaseModel):
     algorithm: str
     date: str
     reward: Optional[float]
-    game_mode: str = "classic"  # <--- CORRECTION 1 : Ajout du champ pour le badge
+    game_mode: str | None = None
 
 
 class LoadModelRequest(BaseModel):
@@ -97,7 +97,7 @@ def list_models():
 
         for f in files:
             if f.endswith("metadata.json"):
-                local_path = hf_hub_download(repo_id=repo_id, filename=f, token=token)
+                local_path = hf_hub_download(repo_id=repo_id, filename=f, token=token, force_download=True)
                 with open(local_path, "r") as json_file:
                     data = json.load(json_file)
 
@@ -107,7 +107,7 @@ def list_models():
                     algorithm=data.get("algorithm", "PPO"),
                     date=data.get("date", "N/A"),
                     reward=data.get("final_mean_reward"),
-                    game_mode=data.get("game_mode", "classic")  # <--- CORRECTION 1 : Lecture du mode
+                    game_mode=data.get("game_mode", "classic")
                 ))
 
         # Tri par reward décroissant
