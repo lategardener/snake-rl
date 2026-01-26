@@ -7,9 +7,23 @@ import numpy as np
 from huggingface_hub import HfApi, hf_hub_download
 from stable_baselines3 import PPO
 from dotenv import load_dotenv
+from prometheus_client import Counter
 load_dotenv()
 
-# --- Modèles de données (Pydantic) ---
+# Définition du compteur avec un label pour la largeur du plateau (grid_size)
+MODELE_LOADED_COUNTER = Counter(
+    'snake_model_loaded_total', 
+    'Nombre total de modèle chargé', 
+    ['grid_size']
+)
+
+# Définition de la métrique (si pas déjà fait)
+GAMES_STARTED_COUNTER = Counter(
+    'snake_games_started_total', 
+    'Nombre total de parties lancées', 
+    ['grid_size']
+)
+
 class GameState(BaseModel):
     grid: List[List[int]]
 
@@ -24,6 +38,10 @@ class ModelInfo(BaseModel):
 
 class LoadModelRequest(BaseModel):
     uuid: str
+    grid_size: int
+
+# Modèle pour la requête de début de partie
+class StartGameRequest(BaseModel):
     grid_size: int
 
 
@@ -104,8 +122,18 @@ def load_model_endpoint(req: LoadModelRequest):
     success = manager.load_model(req.uuid, req.grid_size)
     if not success:
         raise HTTPException(status_code=404, detail="Modèle introuvable ou erreur de chargement")
+    
+    # --- AJOUT DE LA MÉTRIQUE ---
+    # On convertit grid_size en string car les labels Prometheus sont toujours des chaînes
+    MODELE_LOADED_COUNTER.labels(grid_size=str(req.grid_size)).inc()
+    
     return {"status": "loaded", "uuid": req.uuid}
 
+@router.post("/start")
+async def start_game_metric(req: StartGameRequest):
+    """Incrémente le compteur de parties lancées."""
+    GAMES_STARTED_COUNTER.labels(grid_size=str(req.grid_size)).inc()
+    return {"status": "metric_updated"}
 
 @router.post("/predict")
 def predict_move(state: GameState):
