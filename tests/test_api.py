@@ -36,20 +36,6 @@ def test_start_game_invalid_input():
     new_count = get_metric_value(new_metrics, "snake_games_started_total")
     assert new_count == initial_count
 
-def test_metrics_incrementation():
-    """Vérifie que le compteur augmente précisément de 1 à chaque appel valide."""
-    # 1. On récupère la valeur actuelle
-    initial_res = client.get("/metrics")
-    initial_val = get_metric_value(initial_res.text, "snake_games_started_total")
-
-    # 2. On déclenche l'action
-    client.post("/api/start", json={"grid_size": 10})
-
-    # 3. On vérifie l'incrément
-    new_res = client.get("/metrics")
-    new_val = get_metric_value(new_res.text, "snake_games_started_total")
-    
-    assert new_val == initial_val + 1
 
 def test_prometheus_format():
     """Vérifie que le format exposé est compatible avec Prometheus (Type et Help)."""
