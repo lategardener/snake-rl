@@ -35,6 +35,9 @@ pip install stable-baselines3 gymnasium numpy pandas
 ```
 
 
+lien repo : https://lategardener.github.io/snake-rl/
+
+
 
 
 
