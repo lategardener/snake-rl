@@ -14,8 +14,8 @@ if not hf_token:
 
 def list_snake_models(
     grid_size_filter: int = None,
-    sort_by: str = "date",  #
-    hf_repo_id: str = "Lategardener/snake-rl-models"
+    sort_by: str = "date",  
+    hf_repo_id: str = "snakeRL/snake-rl-models"
 ):
     print(f"🔍 Recherche des modèles dans {hf_repo_id}...")
     api = HfApi(token=hf_token)

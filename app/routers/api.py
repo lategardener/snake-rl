@@ -6,7 +6,8 @@ import json
 import numpy as np
 from huggingface_hub import HfApi, hf_hub_download
 from stable_baselines3 import PPO
-
+from dotenv import load_dotenv
+load_dotenv()
 
 # --- Modèles de données (Pydantic) ---
 class GameState(BaseModel):
@@ -35,7 +36,7 @@ class ModelManager:
 
     def load_model(self, uuid: str, grid_size: int):
         token = os.getenv("HF_HUB_TOKEN")
-        repo_id = "Lategardener/snake-rl-models"
+        repo_id = "snakeRL/snake-rl-models"
 
         try:
             print(f"Chargement du modèle {uuid}...")
@@ -66,7 +67,7 @@ router = APIRouter()
 @router.get("/models", response_model=List[ModelInfo])
 def list_models():
     """Scanne Hugging Face et renvoie la liste des modèles."""
-    repo_id = "Lategardener/snake-rl-models"
+    repo_id = "snakeRL/snake-rl-models"
     token = os.getenv("HF_HUB_TOKEN")
     api = HfApi(token=token)
 

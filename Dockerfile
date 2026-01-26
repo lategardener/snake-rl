@@ -1,5 +1,5 @@
 # Utilisation d'une image Python légère
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 # Éviter les fichiers .pyc et forcer l'affichage des logs
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # CORRECTION ICI : On expose le bon port
-EXPOSE 7860
+EXPOSE 5000
 
 # Commande de lancement (inchangée)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]
