@@ -30,24 +30,16 @@
             <div class="god-mode-panel">
                 <div class="header-small">INTERACTIVE TOOLS</div>
 
-                <div class="mode-selector">
-                    <label class="switch-label">
-                        <input type="checkbox" id="mode-toggle" onchange="toggleGameMode()">
-                        <span class="slider"></span>
-                    </label>
-                    <span id="mode-label">CLASSIC</span>
-                </div>
-
                 <div id="tools-container" class="tools-container">
                     <p class="subtitle">INTERVENTIONS:</p>
 
                     <button id="btn-plan-food" onclick="toggleFoodPlanning()" class="tool-btn wide-btn">
-                        🍎 PLAN NEXT FOOD
+                        PLAN NEXT FOOD
                     </button>
 
-                    <div id="wall-btn-container" style="display:none; margin-top:10px;">
-                        <button id="btn-drop-wall" onclick="activateWallMode()" class="tool-btn wide-btn">
-                            🧱 DROP WALL (2s)
+                    <div id="wall-btn-container" style="margin-top:10px;">
+                        <button id="btn-drop-wall" onclick="activateWallMode()" class="tool-btn wide-btn locked">
+                            DROP WALL (2s)
                         </button>
                         <div id="wall-progress-bar" class="cooldown-bar"></div>
                     </div>

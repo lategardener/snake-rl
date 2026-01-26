@@ -234,7 +234,6 @@ canvas {
     box-shadow: 0 0 20px #ffaa00;
 }
 
-/* --- BRAIN VISUALIZATION (NOUVEAU) --- */
 .brain-panel {
     width: 100%;
     margin-top: 15px;
@@ -279,7 +278,6 @@ canvas {
 }
 
 
-/* ... Tes styles existants ... */
 
 /* --- GOD MODE TOOLS --- */
 .god-mode-panel {
@@ -401,7 +399,6 @@ input:checked + .slider:before { transform: translateX(26px); }
     border-color: var(--neon-pink);
 }
 
-/* --- Gestion des Outils --- */
 /* Quand un bouton est désactivé (ex: Mur en mode Classic) */
 .tool-btn.locked {
     opacity: 0.2;
@@ -471,3 +468,15 @@ input:checked + .slider:before { transform: translateX(26px); }
 }
 .badge-classic { background: rgba(0, 243, 255, 0.1); color: var(--neon-blue); border-color: var(--neon-blue); }
 .badge-walls { background: rgba(188, 19, 254, 0.1); color: var(--neon-pink); border-color: var(--neon-pink); }
+
+
+
+/* État verrouillé (Mode Classic) */
+.tool-btn.locked {
+    opacity: 0.3;
+    cursor: not-allowed;
+    background: #222;
+    border-color: #444;
+    color: #666;
+    pointer-events: none; /* Empêche tout clic */
+}

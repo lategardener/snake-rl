@@ -23,18 +23,18 @@ let isDead = false;
 let gameLoopInterval = null;
 
 // --- INTERACTIVE VARIABLES ---
-let godModeEnabled = false;
+let activeGameMode = 'classic'; // 'classic' ou 'walls' (déterminé par le modèle chargé)
 let walls = [];
 let wallTimer = 0;
-const WALL_DURATION = 2; // Mur dure 2 steps
+const WALL_DURATION = 2;
 
 // Logique Pomme
-let nextFoodManual = false; // L'utilisateur a cliqué sur "Plan Next"
-let isPlacingFood = false;  // Le jeu est en pause, on attend le clic sur la grille
+let nextFoodManual = false;
+let isPlacingFood = false;
 
 // Logique Mur
-let canPlaceWall = true;    // Cooldown du mur
-let isPlacingWall = false;  // L'utilisateur a cliqué sur "Drop Wall" et doit choisir la case
+let canPlaceWall = true;
+let isPlacingWall = false;
 
 // --- Initialisation ---
 async function init() {
@@ -46,46 +46,53 @@ async function init() {
         }
     });
     canvas.addEventListener('mousedown', onCanvasClick);
-    toggleGameMode();
+
+    // Initialisation état outils par défaut (Classic)
+    updateToolsState();
 }
 
-// --- Mode Toggle ---
-function toggleGameMode() {
-    const checkbox = document.getElementById('mode-toggle');
-    const label = document.getElementById('mode-label');
-    const wallBtnContainer = document.getElementById('wall-btn-container');
+// --- GESTION DE L'ÉTAT DES BOUTONS ---
+function updateToolsState() {
+    const wallBtn = document.getElementById('btn-drop-wall');
 
-    godModeEnabled = checkbox.checked;
+    // On désactive tout le temps l'interaction si pas de jeu lancé,
+    // mais ici on gère surtout l'aspect visuel selon le mode.
 
-    if (godModeEnabled) {
-        label.innerText = "GOD MODE (WALLS)";
-        label.style.color = "var(--neon-pink)";
-        wallBtnContainer.style.display = 'block'; // Affiche le bouton mur
+    if (activeGameMode === 'walls') {
+        // Mode Walls : Le bouton est activé
+        wallBtn.classList.remove('locked');
+        wallBtn.disabled = false;
+        wallBtn.title = "Place a temporary wall";
     } else {
-        label.innerText = "CLASSIC";
-        label.style.color = "var(--text-muted)";
-        wallBtnContainer.style.display = 'none'; // Cache le bouton mur
-        walls = []; // Nettoie les murs
-        wallTimer = 0;
+        // Mode Classic : Le bouton est verrouillé
+        wallBtn.classList.add('locked');
+        wallBtn.disabled = true;
+        wallBtn.title = "Only available for WALLS models";
+
+        // Si on était en train de placer un mur, on annule
+        isPlacingWall = false;
+        canPlaceWall = true;
+        wallBtn.classList.remove('placing');
+        wallBtn.innerText = "🧱 DROP WALL (LOCKED)";
     }
 }
 
 // --- BOUTON : PLAN NEXT FOOD ---
 function toggleFoodPlanning() {
+    // Marche dans tous les modes
     const btn = document.getElementById('btn-plan-food');
-    nextFoodManual = !nextFoodManual; // Toggle
+    nextFoodManual = !nextFoodManual;
 
     if (nextFoodManual) {
         btn.classList.add('armed');
         btn.innerText = "WAITING FOR EAT...";
     } else {
         btn.classList.remove('armed');
-        btn.innerText = "PLAN NEXT FOOD";
-        // Si on annule alors qu'on était déjà en train de placer
+        btn.innerText = "🍎 PLAN NEXT FOOD";
         if (isPlacingFood) {
             isPlacingFood = false;
-            isPlaying = true; // On relance le jeu
-            placeFood(); // On place une pomme aléatoire pour débloquer
+            isPlaying = true;
+            placeFood();
             gameLoopInterval = setInterval(gameStep, 150);
         }
     }
@@ -93,7 +100,8 @@ function toggleFoodPlanning() {
 
 // --- BOUTON : DROP WALL ---
 function activateWallMode() {
-    if (!canPlaceWall || !godModeEnabled) return;
+    // Sécurité : Impossible si mode classic
+    if (activeGameMode !== 'walls' || !canPlaceWall) return;
 
     const btn = document.getElementById('btn-drop-wall');
     isPlacingWall = !isPlacingWall;
@@ -103,11 +111,11 @@ function activateWallMode() {
         btn.innerText = "CLICK ON GRID";
     } else {
         btn.classList.remove('placing');
-        btn.innerText = "DROP WALL ";
+        btn.innerText = "🧱 DROP WALL (2s)";
     }
 }
 
-// --- COOLDOWN MUR (5 secondes) ---
+// --- COOLDOWN MUR ---
 function startWallCooldown() {
     canPlaceWall = false;
     isPlacingWall = false;
@@ -120,7 +128,7 @@ function startWallCooldown() {
     btn.innerText = "RELOADING...";
 
     let timeLeft = 5000;
-    const interval = 100; // Update toutes les 100ms
+    const interval = 100;
 
     const timer = setInterval(() => {
         timeLeft -= interval;
@@ -137,7 +145,7 @@ function startWallCooldown() {
     }, interval);
 }
 
-// --- CLIC SUR LA GRILLE ---
+// --- CLIC SUR GRILLE ---
 function onCanvasClick(e) {
     if ((!isPlaying && !isPlacingFood) || isPaused || isDead) return;
 
@@ -149,20 +157,15 @@ function onCanvasClick(e) {
 
     if (col < 0 || col >= GRID_SIZE || row < 0 || row >= GRID_SIZE) return;
 
-    // 1. PLACEMENT DE LA POMME (Prioritaire si le jeu est en pause pour ça)
+    // 1. POMME
     if (isPlacingFood) {
-        // Vérif case valide
         if (!snake.some(p => p.x === col && p.y === row) && !walls.some(w => w.x === col && w.y === row)) {
             food = {x: col, y: row};
             isPlacingFood = false;
             nextFoodManual = false;
+            document.getElementById('btn-plan-food').classList.remove('armed');
+            document.getElementById('btn-plan-food').innerText = "🍎 PLAN NEXT FOOD";
 
-            // Reset du bouton UI
-            const btn = document.getElementById('btn-plan-food');
-            btn.classList.remove('armed');
-            btn.innerText = "🍎 PLAN NEXT FOOD";
-
-            // Relancer le jeu
             isPlaying = true;
             statusText.innerText = "ONLINE - RUNNING";
             statusText.style.color = "var(--text-main)";
@@ -170,12 +173,11 @@ function onCanvasClick(e) {
             draw();
         }
     }
-    // 2. PLACEMENT DU MUR
-    else if (isPlacingWall && godModeEnabled && canPlaceWall) {
-        // Vérif case valide (pas sur serpent, pas sur pomme)
+    // 2. MUR (Seulement si activeGameMode est 'walls')
+    else if (isPlacingWall && activeGameMode === 'walls' && canPlaceWall) {
         if (!snake.some(p => p.x === col && p.y === row) && !(food.x === col && food.y === row)) {
             walls.push({x: col, y: row});
-            wallTimer = WALL_DURATION + 1; // +1 car décrémenté au début du step
+            wallTimer = WALL_DURATION + 1;
             startWallCooldown();
             draw();
         }
@@ -186,13 +188,11 @@ function onCanvasClick(e) {
 async function gameStep() {
     if (!isPlaying || isPaused || isDead) return;
 
-    // Gestion Durée de vie Mur
     if (walls.length > 0) {
         wallTimer--;
         if (wallTimer <= 0) walls = [];
     }
 
-    // Construction Grille pour IA
     let grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
     snake.forEach(p => grid[p.y][p.x] = 1);
     grid[food.y][food.x] = 2;
@@ -208,7 +208,6 @@ async function gameStep() {
         if (!res.ok) return;
         const data = await res.json();
 
-        // Si entre temps on est passé en pause (ex: clic interface), on stop
         if (isPaused || !isPlaying) return;
 
         if (data.probabilities) {
@@ -231,7 +230,6 @@ function moveSnake(action) {
     if (action === 2) head.x -= 1;
     if (action === 3) head.x += 1;
 
-    // Collisions
     const hitWall = walls.some(w => w.x === head.x && w.y === head.y);
     if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE ||
         snake.some(p => p.x === head.x && p.y === head.y) || hitWall) {
@@ -241,26 +239,20 @@ function moveSnake(action) {
 
     snake.unshift(head);
 
-    // Manger Pomme
     if (head.x === food.x && head.y === food.y) {
         score++;
         scoreEl.innerText = score;
 
-        // --- INTERCEPTION : SI MODE MANUEL ACTIVÉ ---
         if (nextFoodManual) {
-            // On met le jeu en "Pause Technique"
             isPlaying = false;
             clearInterval(gameLoopInterval);
             isPlacingFood = true;
-
-            // UI Feedback
             statusText.innerText = "WAITING FOR PLACEMENT";
             statusText.style.color = "var(--neon-pink)";
             document.getElementById('btn-plan-food').innerText = "CLICK GRID NOW!";
-
-            draw(); // Redessine pour afficher les zones de surbrillance
+            draw();
         } else {
-            placeFood(); // Mode automatique classique
+            placeFood();
         }
     } else {
         snake.pop();
@@ -281,11 +273,9 @@ function placeFood() {
 }
 
 function draw() {
-    // Fond
     ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Grille
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.lineWidth = 1;
     for(let i=0; i<=GRID_SIZE; i++) {
@@ -297,12 +287,10 @@ function draw() {
         ctx.stroke();
     }
 
-    // --- SURBRILLANCE DES ZONES VALIDES (SI EN MODE PLACEMENT) ---
     if (isPlacingFood) {
-        ctx.fillStyle = "rgba(0, 255, 0, 0.1)"; // Vert très léger
+        ctx.fillStyle = "rgba(0, 255, 0, 0.1)";
         for(let r=0; r<GRID_SIZE; r++) {
             for(let c=0; c<GRID_SIZE; c++) {
-                // Si la case est libre
                 const busy = snake.some(p => p.x === c && p.y === r) || walls.some(w => w.x === c && w.y === r);
                 if (!busy) {
                     ctx.fillRect(c*CELL_SIZE+1, r*CELL_SIZE+1, CELL_SIZE-2, CELL_SIZE-2);
@@ -311,7 +299,6 @@ function draw() {
         }
     }
 
-    // Murs
     walls.forEach(w => {
         ctx.fillStyle = "#ffffff";
         ctx.shadowBlur = 15;
@@ -320,7 +307,6 @@ function draw() {
         ctx.shadowBlur = 0;
     });
 
-    // Food (Ne pas dessiner si on est en train de la placer !)
     if (!isPlacingFood) {
         ctx.shadowBlur = 15;
         ctx.shadowColor = "#bc13fe";
@@ -329,7 +315,6 @@ function draw() {
         ctx.shadowBlur = 0;
     }
 
-    // Snake
     snake.forEach((part, index) => {
         if (index === 0) {
             ctx.fillStyle = isDead ? "#ff0000" : "#00f3ff";
@@ -343,18 +328,15 @@ function draw() {
     });
     ctx.shadowBlur = 0;
 
-    // Overlay rouge si mort
     if (isDead) {
         ctx.fillStyle = "rgba(255, 0, 0, 0.4)";
         ctx.fillRect(0,0, canvas.width, canvas.height);
     }
 }
 
-// Gestion des Modèles & Autres (inchangé mais nécessaire pour le contexte)
-async function loadModels() { /* ... Code existant de chargement ... */
-    // Pour gagner de la place ici, je ne remets pas la fonction loadModels si elle n'a pas changé,
-    // mais assure-toi de garder ton code de chargement avec la gestion des badges !
-    try {
+// Fonction de chargement inchangée (mais assure-toi que tes badges fonctionnent)
+async function loadModels() {
+     try {
         const res = await fetch(`${API_BASE_URL}/api/models`);
         const models = await res.json();
         modelListEl.innerHTML = '';
@@ -403,8 +385,15 @@ async function selectModel(model, cardElement) {
         if (res.ok) {
             GRID_SIZE = model.grid_size;
             CELL_SIZE = canvas.width / GRID_SIZE;
+
+            // --- MISE À JOUR DU MODE ICI ---
             activeModelNameEl.innerText = `AGENT: ${model.uuid.substring(0, 8)}`;
             activeModelNameEl.innerHTML += ` <span style="font-size:0.5em; color:var(--neon-pink)">[${model.grid_size}x${model.grid_size}]</span>`;
+
+            // On récupère le mode du modèle et on met à jour les boutons
+            activeGameMode = model.game_mode || 'classic';
+            updateToolsState(); // <--- C'est ici que la magie opère
+
             overlayEl.style.display = 'none';
             pauseBtn.disabled = false;
             resetGame();
@@ -429,6 +418,9 @@ function resetGame() {
     const btnFood = document.getElementById('btn-plan-food');
     btnFood.classList.remove('armed');
     btnFood.innerText = "🍎 PLAN NEXT FOOD";
+
+    // Reset Wall state si nécessaire
+    updateToolsState();
 
     statusText.innerText = "ONLINE - RUNNING";
     statusText.style.color = "var(--text-main)";
