@@ -1,4 +1,5 @@
-const API_BASE_URL = "https://snake-rl.onrender.com"; // Mettre l'URL prod ou localhost
+// Utilisation dynamique de l'URL du serveur actuel
+const API_BASE_URL = window.location.origin;
 
 let selectedModel = null;
 let currentSocket = null;
@@ -8,10 +9,11 @@ let activeRunId = null;
 document.addEventListener('DOMContentLoaded', () => {
     loadModels();
     checkActiveTrainings();
-    setInterval(checkActiveTrainings, 5000); // Poll active jobs toutes les 5s
+    // Poll active jobs toutes les 5s pour mettre à jour la liste des entraînements en cours
+    setInterval(checkActiveTrainings, 5000);
 });
 
-// --- 1. GESTION DES MODÈLES ---
+// --- 1. GESTION DES MODÈLES (AFFICHAGE) ---
 async function loadModels() {
     const container = document.getElementById('admin-model-list');
     try {
@@ -22,7 +24,8 @@ async function loadModels() {
         models.forEach(model => {
             const el = document.createElement('div');
             el.className = 'model-card';
-            // Badge Mode
+
+            // Badge de mode (Classic ou Walls)
             const modeBadge = model.game_mode === 'walls'
                 ? '<span class="mode-badge badge-walls">WALLS</span>'
                 : '<span class="mode-badge badge-classic">CLASSIC</span>';
@@ -35,71 +38,71 @@ async function loadModels() {
                 <div class="uuid">${model.uuid.substring(0, 12)}...</div>
             `;
 
-            // Interaction : Survol et Clic
+            // Interaction : Survol pour les détails, Clic pour sélectionner le réentraînement
             el.onmouseenter = () => showDetails(model, false);
             el.onclick = () => selectForRetrain(model, el);
 
             container.appendChild(el);
         });
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Erreur lors du chargement des modèles:", e); }
 }
 
-// --- 2. AFFICHAGE DÉTAILS & FORMULAIRE ---
+// --- 2. AFFICHAGE DES DÉTAILS DANS L'INSPECTEUR ---
 function showDetails(model, isSelected) {
-    if (!isSelected && selectedModel) return; // Si un modèle est sélectionné, on ne change pas au survol
+    // Si un modèle est déjà cliqué/sélectionné, on ignore le survol des autres
+    if (!isSelected && selectedModel) return;
 
     const card = document.getElementById('model-details-card');
     card.classList.add('visible');
 
-    document.getElementById('detail-uuid').innerText = model.uuid.substring(0, 8);
-    document.getElementById('detail-grid').innerText = model.grid_size + 'x' + model.grid_size;
-    document.getElementById('detail-mode').innerText = model.game_mode.toUpperCase();
-    document.getElementById('detail-reward').innerText = model.reward ? model.reward.toFixed(3) : 'N/A';
-    document.getElementById('detail-algo').innerText = model.algorithm;
-    document.getElementById('detail-date').innerText = model.date;
+    // Mise à jour des informations textuelles
+    document.getElementById('detail-uuid').innerText = "AGENT: " + model.uuid.substring(0, 8);
+
+    // On peut aussi mettre à jour les labels de récompense si besoin
+    if (document.getElementById('detail-grid')) document.getElementById('detail-grid').innerText = model.grid_size + 'x' + model.grid_size;
+    if (document.getElementById('detail-mode')) document.getElementById('detail-mode').innerText = model.game_mode.toUpperCase();
 }
 
+// --- 3. SÉLECTION POUR RÉENTRAÎNEMENT (VERROUILLAGE) ---
 function selectForRetrain(model, cardElement) {
-    // Gestion sélection visuelle
+    // Gestion visuelle de la sélection dans la liste
     document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
     cardElement.classList.add('active');
-    selectedModel = model;
 
+    selectedModel = model;
     showDetails(model, true);
 
-    // Remplissage & Verrouillage du Formulaire
-    document.getElementById('train-grid').value = model.grid_size;
-    document.getElementById('train-grid').disabled = true; // On ne change pas la taille grille en fine-tuning
+    // Remplissage des champs de formulaire (Verrouillés dans l'HTML)
+    // On remplit les inputs readonly pour que l'utilisateur voit ce qu'il va réentraîner
+    document.getElementById('train-grid').value = `${model.grid_size} x ${model.grid_size}`;
 
-    const modeSelect = document.getElementById('train-mode');
-    modeSelect.value = model.game_mode;
-    modeSelect.disabled = true; // On ne change pas le mode en fine-tuning
+    // On remplit le texte affiché et la valeur cachée pour le mode
+    document.getElementById('train-mode-text').value = model.game_mode.toUpperCase();
+    document.getElementById('train-mode').value = model.game_mode;
 
-    document.getElementById('btn-launch-train').innerText = "🚀 RETRAIN THIS MODEL";
-    document.getElementById('btn-launch-train').classList.add('btn-warning');
+    // On fixe le nombre d'environnements basé sur le modèle parent
+    document.getElementById('train-envs').value = (model.n_envs || 4) + " Parallel Envs";
+
+    // On s'assure que le bouton est prêt
+    const launchBtn = document.getElementById('btn-launch-train');
+    launchBtn.innerText = "🚀 START RETRAINING";
+    launchBtn.classList.add('btn-warning');
 }
 
-function prepareNewTraining() {
-    selectedModel = null;
-    document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
-
-    // Reset Form
-    document.getElementById('model-details-card').classList.add('visible');
-    document.getElementById('detail-uuid').innerText = "NEW AGENT";
-    document.getElementById('train-grid').disabled = false;
-    document.getElementById('train-mode').disabled = false;
-    document.getElementById('btn-launch-train').innerText = "✨ START FRESH TRAINING";
-    document.getElementById('btn-launch-train').classList.remove('btn-warning');
-}
-
-// --- 3. LANCEMENT & MONITORING ---
+// --- 4. LANCEMENT DU JOB D'ENTRAÎNEMENT ---
 async function launchTraining() {
+    if (!selectedModel) {
+        alert("Please select a model from the list first.");
+        return;
+    }
+
+    // Le seul champ modifiable par l'utilisateur est 'train-timesteps'
     const payload = {
         timesteps: parseInt(document.getElementById('train-timesteps').value),
-        n_envs: parseInt(document.getElementById('train-envs').value),
-        grid_size: parseInt(document.getElementById('train-grid').value),
-        game_mode: document.getElementById('train-mode').value,
-        base_uuid: selectedModel ? selectedModel.uuid : null // Null = Nouveau, UUID = Retrain
+        n_envs: parseInt(selectedModel.n_envs || 4), // Paramètre fixe
+        grid_size: parseInt(selectedModel.grid_size), // Paramètre fixe
+        game_mode: document.getElementById('train-mode').value, // Paramètre fixe
+        base_uuid: selectedModel.uuid // L'ID du modèle à réentraîner
     };
 
     try {
@@ -110,46 +113,48 @@ async function launchTraining() {
         });
         const data = await res.json();
 
-        if (data.status === 'started') {
-            alert("Training Launched! ID: " + data.run_id);
+        if (data.run_id) {
+            alert("Training process started! Run ID: " + data.run_id);
+            // On connecte immédiatement le flux "Unity-style"
             connectToUnityStream(data.run_id, payload.n_envs, payload.grid_size);
             checkActiveTrainings();
         }
-    } catch (e) { alert("Error starting training"); console.error(e); }
+    } catch (e) {
+        alert("Failed to start training. Check server logs.");
+        console.error(e);
+    }
 }
 
-// --- 4. VISUALISATION UNITY (WebSocket) ---
+// --- 5. VISUALISATION TEMPS RÉEL (UNITY-STYLE) ---
 function connectToUnityStream(runId, nEnvs, gridSize) {
     if (currentSocket) currentSocket.close();
 
     activeRunId = runId;
     const container = document.getElementById('unity-container');
-    container.innerHTML = ''; // Clear ancien
+    container.innerHTML = ''; // Nettoyage de la grille de visualisation
     document.getElementById('live-indicator').style.display = 'block';
 
-    // Création des N canvas
-    const canvases = [];
     const ctxs = [];
 
+    // Création dynamique des canvas pour chaque environnement parallèle
     for(let i=0; i<nEnvs; i++) {
         const wrap = document.createElement('div');
+        wrap.style.textAlign = "center";
         wrap.innerHTML = `<span style="font-size:0.7rem; color:#888;">ENV ${i}</span>`;
+
         const cvs = document.createElement('canvas');
-        cvs.width = 100; // Taille fixe pour la preview
-        cvs.height = 100;
+        cvs.width = 120; // Taille miniature pour le monitoring
+        cvs.height = 120;
         cvs.className = 'env-canvas';
+
         wrap.appendChild(cvs);
         container.appendChild(wrap);
-
-        canvases.push(cvs);
         ctxs.push(cvs.getContext('2d'));
     }
 
-    // Connexion WS
-    const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Attention : adapter l'URL si tu es en local ou prod
-    // Si tu utilises Render, l'URL est API_BASE_URL mais avec wss://
-    const wsUrl = API_BASE_URL.replace('http', 'ws') + `/api/ws/training/${runId}`;
+    // Initialisation du WebSocket pour le streaming des grilles
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/api/ws/training/${runId}`;
 
     currentSocket = new WebSocket(wsUrl);
 
@@ -159,52 +164,60 @@ function connectToUnityStream(runId, nEnvs, gridSize) {
         if (data.status === 'finished') {
             currentSocket.close();
             document.getElementById('live-indicator').style.display = 'none';
-            alert("Training Finished!");
-            loadModels(); // Refresh liste
+            alert("Training Job " + runId.substring(0,8) + " completed!");
+            loadModels(); // Rafraîchir la liste pour voir le nouveau modèle
             return;
         }
 
-        // data.grids contient une liste de grilles (List[List[int]])
-        // On dessine chaque grille sur son canvas
+        // Dessiner chaque grille reçue sur son canvas correspondant
         if (data.grids && Array.isArray(data.grids)) {
             data.grids.forEach((gridData, idx) => {
                 if (idx < ctxs.length) {
-                    drawMiniGrid(ctxs[idx], gridData, gridSize);
+                    drawMiniGrid(ctxs[idx], gridData.grid, gridSize);
                 }
             });
         }
     };
 }
 
+// Fonction utilitaire de dessin pour les miniatures
 function drawMiniGrid(ctx, grid, size) {
     const cellSize = ctx.canvas.width / size;
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0,0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = "#050510";
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-    // grid est une matrice 2D (ou liste de listes)
-    // 0=Vide, 1=Snake, 2=Food, 3=Wall
     for(let r=0; r<size; r++) {
         for(let c=0; c<size; c++) {
             const val = grid[r][c];
-            if (val === 1) { ctx.fillStyle = "#00f3ff"; ctx.fillRect(c*cellSize, r*cellSize, cellSize, cellSize); }
-            else if (val === 2) { ctx.fillStyle = "#bc13fe"; ctx.fillRect(c*cellSize, r*cellSize, cellSize, cellSize); }
-            else if (val === 3) { ctx.fillStyle = "#ffffff"; ctx.fillRect(c*cellSize, r*cellSize, cellSize, cellSize); }
+            if (val === 1) { // Snake
+                ctx.fillStyle = "#00f3ff";
+                ctx.fillRect(c*cellSize, r*cellSize, cellSize-1, cellSize-1);
+            } else if (val === 2) { // Food
+                ctx.fillStyle = "#bc13fe";
+                ctx.fillRect(c*cellSize, r*cellSize, cellSize-1, cellSize-1);
+            } else if (val === 3) { // Wall
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(c*cellSize, r*cellSize, cellSize-1, cellSize-1);
+            }
         }
     }
 }
 
+// --- 6. VÉRIFICATION DES JOBS ACTIFS ---
 async function checkActiveTrainings() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/train/active`);
         const ids = await res.json();
         const list = document.getElementById('active-jobs-list');
 
-        if (ids.length === 0) {
-            list.innerHTML = "No active jobs.";
+        if (!ids || ids.length === 0) {
+            list.innerHTML = "No training jobs currently active.";
         } else {
             list.innerHTML = ids.map(id =>
-                `<div style="cursor:pointer; color:var(--neon-green);" onclick="reconnect('${id}')">▶ Job ${id.substring(0,6)}...</div>`
+                `<div style="cursor:pointer; color:var(--neon-green); margin-bottom:5px;" onclick="connectToUnityStream('${id}', 4, 10)">
+                    ▶ Monitoring Job: ${id.substring(0,8)}...
+                </div>`
             ).join('');
         }
-    } catch(e){}
+    } catch(e) { console.error("Erreur lors de la vérification des jobs:", e); }
 }

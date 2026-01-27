@@ -4,7 +4,7 @@ torch==2.6.0+cpu
 
 # --- Backend Web ---
 fastapi==0.104.1
-uvicorn==0.24.0
+uvicorn[standard]
 jinja2==3.1.2
 python-multipart==0.0.6
 
@@ -14,18 +14,19 @@ shimmy>=1.3.0
 pygame
 numpy
 
-# --- Monitoring ---
-# Monitoring
+# --- Monitoring & Database ---
 prometheus-client==0.19.0
 prometheus-fastapi-instrumentator
 mlflow
+psycopg2-binary
 
+# --- Utilitaires ---
 httpx==0.27.2
 pytest>=8.0.0
+python-dotenv
 
 # --- Hugging Face ---
 huggingface_hub
-python-dotenv
 
-# RL
+# --- Reinforcement Learning ---
 stable-baselines3
