@@ -1,256 +1,338 @@
-import os
-import uuid
-import json
-import time
-import mlflow
-import tempfile
-from datetime import datetime
-from pathlib import Path
-import textwrap
+import gymnasium as gym
+from gymnasium import spaces
+import numpy as np
+import random
+import pygame
+import sys
 
-from dotenv import load_dotenv
-from huggingface_hub import HfApi, hf_hub_download
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.utils import safe_mean
-from stable_baselines3.common.callbacks import BaseCallback
-
-# Imports locaux
-from app.src.agent.utils.mlflow_wrapper import SnakeHFModel
-from app.src.agent.utils.callbacks import MLflowLoggingCallback
-from app.src.agent.utils.loading import load_snake_model_data
-
-os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
-
-load_dotenv()
-hf_token = os.getenv("HF_HUB_TOKEN")
+# Codes ANSI pour le rendu Console (utile pour le debug)
+RESET = "\033[0m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+BLUE = "\033[34m"
+WHITE = "\033[37m"
 
 
-# --- GESTIONNAIRE D'ÉTAT GLOBAL (Pour le Streaming WebSocket) ---
-class TrainingStateManager:
-    def __init__(self):
-        # Stocke : { "run_uuid": { "progress": 0.5, "grids": [...], "timestamp": ... } }
-        self.active_trainings = {}
+class SnakeEnv(gym.Env):
+    """
+    Environnement Snake compatible Gymnasium avec modes de jeu dynamiques.
 
-    def update(self, run_id, progress, grids, stats=None):
-        self.active_trainings[run_id] = {
-            "progress": progress,
-            "grids": grids,  # Liste des grilles de tous les envs
-            "stats": stats,  # Reward moyen etc.
-            "timestamp": time.time()
+    Modes de jeu (game_mode) :
+    - "classic" : Mode standard (juste des pommes).
+    - "walls" : Mode avancé (pommes + murs dynamiques).
+
+    Dynamique des murs :
+    - Apparaissent via interaction utilisateur ou aléatoirement.
+    - Restent affichés pendant WALL_DURATION steps.
+    - Disparaissent ensuite durant WALL_COOLDOWN_TIME steps.
+    """
+    metadata = {"render_modes": ["human", "pygame", "rgb_array"], "render_fps": 10}
+
+    def __init__(self, grid_size=10, render_mode=None, max_steps=150, game_mode="classic"):
+        super().__init__()
+
+        self.grid_size = grid_size
+        self.render_mode = render_mode
+        self.max_steps = max_steps
+        self.game_mode = game_mode  # "classic" ou "walls"
+
+        # Paramètres Pygame
+        self.window_size = 500
+        self.cell_size = self.window_size // self.grid_size
+        self.window = None
+        self.clock = None
+
+        # --- CONFIGURATION DES MURS ---
+        self.walls = []  # Liste des positions (x, y) des murs actifs
+        self.wall_timer = 0  # Compteur de durée de vie du mur
+        self.wall_cooldown = 0  # Compteur d'attente avant prochain mur
+
+        # Réglages de gameplay
+        self.WALL_DURATION = 3  # Le mur reste 3 steps (comme demandé)
+        self.WALL_COOLDOWN_TIME = 6  # Temps de recharge entre deux murs
+        self.WALL_RANDOM_PROB = 0.05  # 5% de chance qu'un mur apparaisse seul (si user inactif)
+
+        # --- INTERACTION API ---
+        self.pending_food_position = None
+        self.pending_wall_position = None
+
+        # Actions : 0=Haut, 1=Bas, 2=Gauche, 3=Droite
+        self.action_space = spaces.Discrete(4)
+
+        # Observation : Grille 2D
+        # 0: Vide, 1: Serpent, 2: Nourriture, 3: Mur temporaire
+        self.observation_space = spaces.Box(
+            low=0, high=3, shape=(grid_size, grid_size), dtype=np.int8
+        )
+
+        self.reset()
+
+    def set_game_mode(self, mode):
+        """Change le mode de jeu à la volée (appelé par l'API)"""
+        if mode in ["classic", "walls"]:
+            self.game_mode = mode
+            # Nettoyage immédiat si on repasse en classique
+            if mode == "classic":
+                self.walls = []
+                self.wall_timer = 0
+                self.wall_cooldown = 0
+            print(f"🔄 Mode de jeu changé : {mode}")
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+
+        # 1. Reset du Serpent (au centre)
+        start_pos = (self.grid_size // 2, self.grid_size // 2)
+        self.snake = [start_pos]
+
+        # 2. Reset des mécanismes de jeu
+        self.walls = []
+        self.wall_timer = 0
+        self.wall_cooldown = 0
+        self.pending_food_position = None
+        self.pending_wall_position = None
+
+        # 3. Placement première pomme
+        self.food = None
+        self._place_food()
+
+        self.step_count = 0
+
+        if self.render_mode == "pygame":
+            self._render_frame()
+
+        return self._get_obs(), {}
+
+    def step(self, action):
+        self.step_count += 1
+
+        # --- PHASE 1 : GESTION DES MURS DYNAMIQUES ---
+
+        # Cas A : Des murs sont présents -> On décrémente leur vie
+        if self.walls:
+            self.wall_timer -= 1
+            if self.wall_timer <= 0:
+                self.walls = []  # Ils disparaissent
+                self.wall_cooldown = self.WALL_COOLDOWN_TIME  # Début du temps de recharge
+
+        # Cas B : Pas de murs, mais on est en recharge -> On décrémente le cooldown
+        elif self.wall_cooldown > 0:
+            self.wall_cooldown -= 1
+
+        # Cas C : Prêt à faire apparaître un mur (Mode Walls + Pas de murs + Cooldown fini)
+        if self.game_mode == "walls" and not self.walls and self.wall_cooldown == 0:
+            target_wall = None
+
+            # Priorité 1 : L'utilisateur a cliqué (API)
+            if self.pending_wall_position:
+                target_wall = self.pending_wall_position
+                self.pending_wall_position = None  # Action consommée
+
+            # Priorité 2 : Aléatoire (Entraînement ou Idle)
+            elif random.random() < self.WALL_RANDOM_PROB:
+                empty_cells = self._get_empty_cells()
+                if empty_cells:
+                    target_wall = random.choice(empty_cells)
+
+            # Application du mur (si valide)
+            if target_wall:
+                # Sécurité critique : Ne pas faire apparaître SUR le serpent ou la pomme
+                if target_wall not in self.snake and target_wall != self.food:
+                    self.walls = [target_wall]
+                    self.wall_timer = self.WALL_DURATION
+
+        # --- PHASE 2 : MOUVEMENT ---
+        head_x, head_y = self.snake[0]
+        if action == 0:
+            head_x -= 1  # Haut
+        elif action == 1:
+            head_x += 1  # Bas
+        elif action == 2:
+            head_y -= 1  # Gauche
+        elif action == 3:
+            head_y += 1  # Droite
+
+        new_head = (head_x, head_y)
+
+        # --- PHASE 3 : COLLISIONS & RÉCOMPENSES ---
+        terminated = False
+        reward = 0
+
+        # Vérification des collisions (Murs Bordure OU Corps OU Murs Dynamiques)
+        if (head_x < 0 or head_x >= self.grid_size or
+                head_y < 0 or head_y >= self.grid_size or
+                new_head in self.snake or
+                new_head in self.walls):  # <--- Le mur dynamique tue !
+
+            terminated = True
+            reward = -1
+        else:
+            # Avancer
+            self.snake.insert(0, new_head)
+
+            # Manger
+            if new_head == self.food:
+                reward = 1
+                placed = self._place_food()
+                if not placed:
+                    terminated = True  # Victoire (grille pleine)
+            else:
+                self.snake.pop()
+                reward = -0.01  # Pénalité de temps
+
+        # Troncature (Max steps atteint)
+        truncated = self.step_count >= self.max_steps
+
+        # Rendu
+        if self.render_mode == "pygame":
+            self._render_frame()
+
+        return self._get_obs(), reward, terminated, truncated, {}
+
+    def queue_interaction(self, action_type, x, y):
+        """
+        API Entrypoint: Reçoit les ordres du Frontend.
+        x, y : Coordonnées grille (0 à grid_size-1)
+        """
+        # Conversion Frontend (x,y) -> Backend (row, col) si nécessaire
+        # Ici on suppose que le front envoie x=col, y=row.
+        target = (y, x)
+
+        if action_type == "place_food":
+            self.pending_food_position = target
+
+        elif action_type == "place_wall":
+            # On enregistre l'intention, elle sera traitée au prochain step()
+            # si le cooldown le permet.
+            self.pending_wall_position = target
+
+    def _place_food(self):
+        """Place la nourriture (Manuel ou Auto)"""
+        # 1. Manuel
+        if self.pending_food_position:
+            pos = self.pending_food_position
+            # Vérif qu'on ne pose pas sur un obstacle
+            if pos not in self.snake and pos not in self.walls:
+                self.food = pos
+                self.pending_food_position = None
+                return True
+
+        # 2. Auto
+        empty_cells = self._get_empty_cells()
+        if empty_cells:
+            self.food = random.choice(empty_cells)
+            return True
+        return False
+
+    def _get_empty_cells(self):
+        return [
+            (r, c) for r in range(self.grid_size) for c in range(self.grid_size)
+            if (r, c) not in self.snake and (r, c) not in self.walls and (r, c) != self.food
+        ]
+
+    def _get_obs(self):
+        """Génère la matrice d'observation pour l'IA"""
+        grid = np.zeros((self.grid_size, self.grid_size), dtype=np.int8)
+
+        # 1 = Corps
+        for r, c in self.snake:
+            grid[r, c] = 1
+
+        # 2 = Nourriture
+        if self.food:
+            grid[self.food[0], self.food[1]] = 2
+
+        # 3 = Murs Dynamiques
+        for r, c in self.walls:
+            grid[r, c] = 3
+
+        # [NOUVEAU] Sauvegarde pour l'API externe (Streaming)
+        self.current_grid_state = grid.tolist()
+
+        return grid
+
+
+    def get_state(self):
+        """Retourne l'état brut pour la visualisation web"""
+        return {
+            "grid": getattr(self, "current_grid_state", []),
+            "score": self.step_count,
+            "head": self.snake[0] if self.snake else None,
+            "is_dead": False  # Pourra être amélioré plus tard
         }
 
-    def get_status(self, run_id):
-        return self.active_trainings.get(run_id, None)
 
-    def stop_training(self, run_id):
-        if run_id in self.active_trainings:
-            del self.active_trainings[run_id]
+    def render(self):
+        if self.render_mode == "human":
+            self._render_console()
+        elif self.render_mode == "pygame":
+            self._render_frame()
+        elif self.render_mode == "rgb_array":
+            return self._render_frame(return_rgb=True)
 
+    def _render_console(self):
+        print(WHITE + "┌" + "─" * (self.grid_size * 2) + "┐" + RESET)
+        for r in range(self.grid_size):
+            line = WHITE + "│" + RESET
+            for c in range(self.grid_size):
+                if (r, c) == self.snake[0]:
+                    line += GREEN + "■ " + RESET
+                elif (r, c) in self.snake:
+                    line += YELLOW + "■ " + RESET
+                elif (r, c) == self.food:
+                    line += RED + "● " + RESET
+                elif (r, c) in self.walls:
+                    line += BLUE + "▒ " + RESET
+                else:
+                    line += "  "
+            line += WHITE + "│" + RESET
+            print(line)
+        print(WHITE + "└" + "─" * (self.grid_size * 2) + "┘" + RESET)
 
-# Instance unique partagée
-training_manager = TrainingStateManager()
+    def _render_frame(self, return_rgb=False):
+        if self.window is None and self.render_mode == "pygame":
+            pygame.init()
+            pygame.display.init()
+            self.window = pygame.display.set_mode((self.window_size, self.window_size))
+            pygame.display.set_caption("Snake AI")
 
+        if self.clock is None:
+            self.clock = pygame.time.Clock()
 
-# --- CALLBACK DE STREAMING ---
-class StreamCallback(BaseCallback):
-    def __init__(self, run_id, total_timesteps, verbose=0):
-        super().__init__(verbose)
-        self.run_id = run_id
-        self.total_timesteps = total_timesteps
-        self.last_update = 0
+        canvas = pygame.Surface((self.window_size, self.window_size))
+        canvas.fill((20, 20, 20))  # Fond sombre
 
-    def _on_step(self) -> bool:
-        # On limite l'envoi à ~10 fois par seconde pour ne pas saturer
-        if time.time() - self.last_update > 0.1:
-            try:
-                # Récupère l'état de TOUS les environnements parallèles
-                grids = self.training_env.env_method("get_state")
+        # Dessin Nourriture (Rouge)
+        if self.food:
+            pygame.draw.rect(canvas, (231, 76, 60),
+                             pygame.Rect(self.food[1] * self.cell_size, self.food[0] * self.cell_size, self.cell_size,
+                                         self.cell_size))
 
-                # Calcul progression
-                progress = self.num_timesteps / self.total_timesteps
+        # Dessin Murs (Bleu/Gris avec style)
+        for (r, c) in self.walls:
+            pygame.draw.rect(canvas, (52, 152, 219),
+                             pygame.Rect(c * self.cell_size, r * self.cell_size, self.cell_size, self.cell_size))
+            pygame.draw.rect(canvas, (41, 128, 185),  # Bordure intérieure
+                             pygame.Rect(c * self.cell_size + 4, r * self.cell_size + 4, self.cell_size - 8,
+                                         self.cell_size - 8))
 
-                # Récupère infos de reward si dispo
-                stats = {}
-                if len(self.model.ep_info_buffer) > 0:
-                    stats['mean_reward'] = safe_mean([ep['r'] for ep in self.model.ep_info_buffer])
+        # Dessin Serpent
+        for i, (r, c) in enumerate(self.snake):
+            color = (46, 204, 113) if i == 0 else (241, 196, 15)
+            pygame.draw.rect(canvas, color,
+                             pygame.Rect(c * self.cell_size, r * self.cell_size, self.cell_size, self.cell_size))
 
-                # Mise à jour du manager global
-                training_manager.update(self.run_id, progress, grids, stats)
-                self.last_update = time.time()
-            except Exception:
-                pass
-        return True
+        if return_rgb:
+            return np.transpose(np.array(pygame.surfarray.pixels3d(canvas)), (1, 0, 2))
 
+        if self.render_mode == "pygame":
+            self.window.blit(canvas, canvas.get_rect())
+            pygame.event.pump()
+            pygame.display.flip()
+            self.clock.tick(self.metadata["render_fps"])
 
-def train_snake(
-        run_id: str,
-        timesteps: int = 100_000,
-        grid_size: int = None,
-        n_envs: int = 4,
-        game_mode: str = "classic",
-        algorithm: str = "PPO",
-        hf_repo_id: str = "snakeRL/snake-rl-models",
-        base_uuid: str = None
-):
-    if not hf_token:
-        print("⚠️ Token HF manquant")
-        return
-
-    # --- FIX CRITIQUE : INITIALISATION IMMÉDIATE ---
-    # On déclare le run tout de suite pour maintenir le WebSocket ouvert
-    # pendant les phases de chargement (HF, DB, etc.)
-    print(f"🚀 Initialisation immédiate du run {run_id}...")
-    training_manager.update(run_id, 0, [], {"status": "initializing"})
-    # -----------------------------------------------
-
-    # Initialisation des variables
-    now = datetime.now()
-    readable_date = now.strftime("%d/%m/%Y %H:%M:%S")
-    date_str = now.strftime("%Y%m%d_%H%M%S")
-    new_agent_uuid = str(uuid.uuid4())
-
-    print(f"🚀 Lancement du processus d'entraînement pour {run_id} (Background)...")
-
-    agent = None
-    is_finetuning = False
-
-    # --- LOGIQUE DE CHARGEMENT (Fine-tuning) ---
-    if base_uuid:
-        try:
-            print(f"📥 Téléchargement du modèle parent : {base_uuid}")
-            agent, loaded_grid_size = load_snake_model_data(base_uuid, hf_repo_id)
-            if agent is None:
-                raise ValueError("Modèle introuvable ou erreur de chargement")
-
-            grid_size = loaded_grid_size
-            is_finetuning = True
-            mode_label = "FINE-TUNING"
-
-            # Récupération des métadonnées (pour conserver le mode de jeu)
-            try:
-                model_folder = f"{grid_size}x{grid_size}/{base_uuid}"
-                meta_path = hf_hub_download(repo_id=hf_repo_id, filename=f"{model_folder}/metadata.json")
-                with open(meta_path, 'r') as f:
-                    old_meta = json.load(f)
-
-                if "n_envs" in old_meta: n_envs = old_meta["n_envs"]
-                if "game_mode" in old_meta: game_mode = old_meta["game_mode"]
-                print(f"✅ Configuration chargée : Mode {game_mode}, Grille {grid_size}x{grid_size}")
-            except Exception as e:
-                print(f"⚠️ Erreur lecture metadata (utilisation des défauts): {e}")
-
-        except Exception as e:
-            print(f"❌ Erreur critique Load: {e}")
-            # En cas d'erreur, on nettoie pour que le front sache que c'est fini
-            training_manager.stop_training(run_id)
-            return
-    else:
-        # Nouveau modèle
-        if grid_size is None:
-            print("❌ Erreur : grid_size manquant pour un nouvel entraînement")
-            training_manager.stop_training(run_id)
-            return
-        mode_label = "NEW_TRAINING"
-
-    # --- CONFIGURATION MLFLOW ---
-    run_name = f"{mode_label}_{date_str}_{new_agent_uuid[:8]}"
-    print(f"📊 Démarrage MLflow : {run_name}")
-    mlflow.set_experiment(f"Snake_{grid_size}x{grid_size}")
-
-    try:
-        with mlflow.start_run(run_name=run_name) as run:
-            # Enregistrement des tags et hyperparamètres
-            mlflow.set_tag("agent_uuid", new_agent_uuid)
-            mlflow.set_tag("hf_repo", hf_repo_id)
-            mlflow.set_tag("game_mode", game_mode)
-            if base_uuid: mlflow.set_tag("parent_model_uuid", base_uuid)
-
-            mlflow.log_params({
-                "algorithm": algorithm, "grid_size": grid_size, "n_envs": n_envs,
-                "game_mode": game_mode, "timesteps": timesteps,
-                "base_model": base_uuid if base_uuid else "None"
-            })
-
-            # --- CRÉATION DE L'ENVIRONNEMENT ---
-            # render_mode=None est crucial pour le serveur sans écran (Headless)
-            env = make_vec_env(
-                lambda: Monitor(SnakeEnv(grid_size=grid_size, render_mode=None, game_mode=game_mode)),
-                n_envs=n_envs
-            )
-
-            if is_finetuning:
-                agent.set_env(env)
-            else:
-                agent = PPO("MlpPolicy", env, verbose=0)
-
-            # --- ENTRAÎNEMENT AVEC STREAMING ---
-            print(f"🔥 Go pour {timesteps} steps...")
-
-            callbacks = [
-                MLflowLoggingCallback(),
-                StreamCallback(run_id, timesteps)
-            ]
-
-            agent.learn(
-                total_timesteps=timesteps,
-                callback=callbacks,
-                reset_num_timesteps=not is_finetuning
-            )
-
-            # --- SAUVEGARDE & UPLOAD ---
-            print("\n💾 Sauvegarde du modèle...")
-            with tempfile.TemporaryDirectory() as temp_dir_str:
-                temp_dir = Path(temp_dir_str)
-                agent.save(temp_dir / "model.zip")
-
-                hf_folder = f"{grid_size}x{grid_size}/{new_agent_uuid}"
-                final_reward = safe_mean([ep["r"] for ep in agent.ep_info_buffer]) if agent.ep_info_buffer else None
-
-                metadata = {
-                    "uuid": new_agent_uuid,
-                    "type": "finetuned" if is_finetuning else "fresh",
-                    "parent_uuid": base_uuid,
-                    "grid_size": grid_size,
-                    "n_envs": n_envs,
-                    "game_mode": game_mode,
-                    "algorithm": algorithm,
-                    "date": readable_date,
-                    "final_mean_reward": final_reward,
-                    "hf_folder": hf_folder,
-                    "mlflow_run_id": run.info.run_id
-                }
-
-                with open(temp_dir / "metadata.json", "w") as f:
-                    json.dump(metadata, f, indent=4)
-
-                print("📤 Upload vers Hugging Face...")
-                api = HfApi(token=hf_token)
-                api.create_repo(repo_id=hf_repo_id, repo_type="model", exist_ok=True, private=True)
-                api.upload_folder(
-                    folder_path=str(temp_dir),
-                    path_in_repo=hf_folder,
-                    repo_id=hf_repo_id,
-                    commit_message=f"Add {mode_label} model ({game_mode}) {new_agent_uuid}"
-                )
-
-                # Ajout de la note avec lien dans MLflow
-                hf_url = f"https://huggingface.co/{hf_repo_id}/tree/main/{hf_folder}"
-                note = textwrap.dedent(f"""\
-                    ### {mode_label} - Snake {grid_size}x{grid_size}
-                    **ID :** `{new_agent_uuid}`
-                    **Mode :** {game_mode.upper()} 
-                    **Reward :** {final_reward}
-                    [Voir sur Hugging Face]({hf_url})
-                    """)
-                mlflow.set_tag("mlflow.note.content", note)
-
-                print(f"✅ Terminé ! Modèle {game_mode} disponible : {new_agent_uuid}")
-
-    except Exception as e:
-        print(f"❌ Erreur fatale durant l'entraînement: {e}")
-    finally:
-        # NETTOYAGE CRITIQUE : On signale que le training est fini
-        print(f"🏁 Fin du processus pour {run_id}")
-        training_manager.stop_training(run_id)
+    def close(self):
+        if self.window is not None:
+            pygame.display.quit()
+            pygame.quit()
