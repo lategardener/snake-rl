@@ -100,6 +100,12 @@ def train_snake(
         print("⚠️ Token HF manquant")
         return
 
+    # --- FIX 1 : INITIALISATION IMMÉDIATE ---
+    # Empêche le WebSocket de se fermer (erreur 404) pendant le chargement initial
+    print(f"🚀 Initialisation du run {run_id}...")
+    training_manager.update(run_id, 0, [], {"status": "initializing"})
+    # ----------------------------------------
+
     # Initialisation
     now = datetime.now()
     readable_date = now.strftime("%d/%m/%Y %H:%M:%S")
@@ -111,11 +117,11 @@ def train_snake(
     agent = None
     is_finetuning = False
 
-    # --- LOGIQUE DE CHARGEMENT (Identique à avant) ---
-    if base_uuid:
-        try:
+    try:
+        # --- LOGIQUE DE CHARGEMENT ---
+        if base_uuid:
             agent, loaded_grid_size = load_snake_model_data(base_uuid, hf_repo_id)
-            if agent is None: raise ValueError("Modèle introuvable")
+            if agent is None: raise ValueError(f"Modèle parent {base_uuid} introuvable sur Hugging Face")
 
             grid_size = loaded_grid_size
             is_finetuning = True
@@ -131,23 +137,16 @@ def train_snake(
                 if "n_envs" in old_meta: n_envs = old_meta["n_envs"]
                 if "game_mode" in old_meta: game_mode = old_meta["game_mode"]  # Force le mode
             except Exception as e:
-                print(f"⚠️ Erreur metadata: {e}")
+                print(f"⚠️ Erreur metadata (non critique): {e}")
+        else:
+            if grid_size is None:
+                raise ValueError("Grid Size manquant pour un nouvel entraînement")
+            mode_label = "NEW_TRAINING"
 
-        except Exception as e:
-            print(f"❌ Erreur Load: {e}")
-            training_manager.stop_training(run_id)
-            return
-    else:
-        if grid_size is None:
-            training_manager.stop_training(run_id)
-            return
-        mode_label = "NEW_TRAINING"
+        # --- CONFIG MLFLOW ---
+        run_name = f"{mode_label}_{date_str}_{new_agent_uuid[:8]}"
+        mlflow.set_experiment(f"Snake_{grid_size}x{grid_size}")
 
-    # --- CONFIG MLFLOW ---
-    run_name = f"{mode_label}_{date_str}_{new_agent_uuid[:8]}"
-    mlflow.set_experiment(f"Snake_{grid_size}x{grid_size}")
-
-    try:
         with mlflow.start_run(run_name=run_name) as run:
             # Tags & Params
             mlflow.set_tag("agent_uuid", new_agent_uuid)
@@ -170,12 +169,11 @@ def train_snake(
             if is_finetuning:
                 agent.set_env(env)
             else:
-                agent = PPO("MlpPolicy", env, verbose=0)  # Verbose 0 pour ne pas polluer les logs
+                agent = PPO("MlpPolicy", env, verbose=0)
 
             # --- ENTRAÎNEMENT AVEC STREAMING ---
             print(f"Go pour {timesteps} steps...")
 
-            # On combine ton callback MLflow et le nouveau StreamCallback
             callbacks = [
                 MLflowLoggingCallback(),
                 StreamCallback(run_id, timesteps)
@@ -187,7 +185,7 @@ def train_snake(
                 reset_num_timesteps=not is_finetuning
             )
 
-            # --- SAUVEGARDE & UPLOAD (Identique à avant) ---
+            # --- SAUVEGARDE & UPLOAD ---
             print("\nSauvegarde...")
             with tempfile.TemporaryDirectory() as temp_dir_str:
                 temp_dir = Path(temp_dir_str)
@@ -234,8 +232,14 @@ def train_snake(
 
                 print(f"Terminé ! Modèle {game_mode} dispo : {new_agent_uuid}")
 
+    # --- FIX 2 : GESTION D'ERREUR EXPLICTE ---
     except Exception as e:
         print(f"❌ Erreur fatale training: {e}")
+        # On envoie l'erreur au Front pour afficher une Pop-up ROUGE
+        training_manager.update(run_id, 0, [], {"status": "error", "message": str(e)})
+        time.sleep(3) # On attend que le message parte avant de couper
+
     finally:
-        # NETTOYAGE CRITIQUE : On signale que le training est fini
+        # NETTOYAGE
+        print(f"🏁 Fin du processus pour {run_id}")
         training_manager.stop_training(run_id)
