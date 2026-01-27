@@ -9,33 +9,28 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(checkActiveTrainings, 5000);
 });
 
-// --- NOUVEAU SYSTÈME DE POP-UP ---
+// --- SYSTÈME DE POP-UP ---
 function showAlert(title, message, type = 'info') {
     const overlay = document.getElementById('customAlertOverlay');
     const box = document.getElementById('customAlertBox');
     const titleEl = document.getElementById('alertTitle');
     const msgEl = document.getElementById('alertMessage');
 
-    // Reset classes
     box.classList.remove('success', 'error');
-
     if (type === 'success') box.classList.add('success');
     if (type === 'error') box.classList.add('error');
 
     titleEl.innerText = title;
-    msgEl.innerHTML = message; // innerHTML permet de mettre des <br> ou <b>
-
+    msgEl.innerHTML = message;
     overlay.classList.add('active');
 }
 
 function closeCustomAlert() {
     document.getElementById('customAlertOverlay').classList.remove('active');
 }
-// ----------------------------------
 
-
-// ... (loadModels et showDetails restent identiques) ...
-async function loadModels() { /* ... Code existant ... */
+// --- GESTION DES MODÈLES ---
+async function loadModels() {
     const container = document.getElementById('admin-model-list');
     try {
         const res = await fetch(`${API_BASE_URL}/api/models`);
@@ -81,13 +76,12 @@ function selectForRetrain(model, cardElement) {
 
     const launchBtn = document.getElementById('btn-launch-train');
     launchBtn.innerText = "🚀 START RETRAINING";
-    launchBtn.classList.add('btn-warning');
 }
 
-// --- MODIFICATION ICI : On remplace alert() par showAlert() ---
+// --- LANCEMENT ENTRAÎNEMENT ---
 async function launchTraining() {
     if (!selectedModel) {
-        showAlert("NO SELECTION", "Please select a model from the list first.", "error");
+        showAlert("NO SELECTION", "Please select a model first.", "error");
         return;
     }
 
@@ -100,7 +94,6 @@ async function launchTraining() {
     };
 
     try {
-        // Petit feedback visuel immédiat
         const btn = document.getElementById('btn-launch-train');
         btn.innerText = "⏳ INITIATING...";
 
@@ -112,30 +105,23 @@ async function launchTraining() {
         const data = await res.json();
 
         if (data.run_id) {
-            // Popup Stylée SUCCÈS
-            showAlert(
-                "TRAINING INITIATED",
-                `Run ID: <span style="color:var(--neon-blue)">${data.run_id.substring(0,8)}</span><br>Process started in background.`,
-                "success"
-            );
-
+            showAlert("TRAINING INITIATED", `Run ID: ${data.run_id.substring(0,8)}`, "success");
             connectToUnityStream(data.run_id, payload.n_envs, payload.grid_size);
             checkActiveTrainings();
-
-            btn.innerText = "🚀 START RETRAINING"; // Reset bouton
+            btn.innerText = "🚀 START RETRAINING";
         }
     } catch (e) {
-        showAlert("SYSTEM ERROR", "Failed to start training.<br>Check server logs.", "error");
-        console.error(e);
+        showAlert("SYSTEM ERROR", "Failed to start training.", "error");
     }
 }
 
+// --- VISUALISATION UNITY-STYLE ---
 function connectToUnityStream(runId, nEnvs, gridSize) {
     if (currentSocket) currentSocket.close();
 
     activeRunId = runId;
     const container = document.getElementById('unity-container');
-    container.innerHTML = '';
+    container.innerHTML = ''; // Nettoyage
     document.getElementById('live-indicator').style.display = 'block';
 
     const ctxs = [];
@@ -143,13 +129,14 @@ function connectToUnityStream(runId, nEnvs, gridSize) {
     for(let i=0; i<nEnvs; i++) {
         const wrap = document.createElement('div');
         wrap.className = 'env-wrapper';
+        wrap.id = `env-wrap-${i}`;
 
         const label = document.createElement('span');
         label.className = 'env-label';
         label.innerText = `ENV ${i}`;
 
         const cvs = document.createElement('canvas');
-        cvs.width = 100; cvs.height = 100;
+        cvs.width = 300; cvs.height = 300;
         cvs.className = 'env-canvas';
 
         wrap.appendChild(label);
@@ -163,6 +150,7 @@ function connectToUnityStream(runId, nEnvs, gridSize) {
 
     currentSocket = new WebSocket(wsUrl);
 
+    //
     currentSocket.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
@@ -170,40 +158,64 @@ function connectToUnityStream(runId, nEnvs, gridSize) {
             currentSocket.close();
             document.getElementById('live-indicator').style.display = 'none';
 
-            // Popup Stylée FIN
-            showAlert(
-                "MISSION ACCOMPLISHED",
-                "Training cycle completed successfully.<br>Model has been uploaded to Hugging Face.",
-                "success"
-            );
+            // Création de la barrière visuelle
+            const barrier = document.createElement('div');
+            barrier.className = 'training-overlay';
+            barrier.innerHTML = '<h2>TRAINING COMPLETE</h2>';
+            document.getElementById('unity-container').appendChild(barrier);
 
-            loadModels();
+            showAlert("SUCCESS", "Training finished and uploaded.", "success");
             return;
         }
 
-        if (data.grids && Array.isArray(data.grids)) {
-            data.grids.forEach((gridData, idx) => {
-                if (idx < ctxs.length) {
-                    drawMiniGrid(ctxs[idx], gridData.grid, gridSize); // .grid car l'objet contient {grid: [...], reward: ...}
+        if (data.grids) {
+            data.grids.forEach((envData, idx) => {
+                if (ctxs[idx]) {
+                    const grid = envData.grid || envData;
+                    drawNeonGrid(ctxs[idx], grid, gridSize); // Ta nouvelle fonction néon
                 }
             });
         }
     };
 }
 
-function drawMiniGrid(ctx, grid, size) {
-    const cellSize = ctx.canvas.width / size;
-    ctx.fillStyle = "#050510";
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+// --- MOTEUR DE RENDU NÉON (Style Player Zone) ---
+function drawNeonGrid(ctx, grid, size) {
+    const width = ctx.canvas.width;
+    const cellSize = width / size;
+
+    // 1. Fond et Grillage
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, width, width);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
+    for(let i=0; i<=size; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i*cellSize, 0); ctx.lineTo(i*cellSize, width);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, i*cellSize); ctx.lineTo(width, i*cellSize);
+        ctx.stroke();
+    }
 
     if(!grid) return;
 
+    // 2. Éléments
     for(let r=0; r<size; r++) {
         for(let c=0; c<size; c++) {
             const val = grid[r][c];
-            if (val === 1) { ctx.fillStyle = "#00f3ff"; ctx.fillRect(c*cellSize, r*cellSize, cellSize, cellSize); }
-            else if (val === 2) { ctx.fillStyle = "#bc13fe"; ctx.fillRect(c*cellSize, r*cellSize, cellSize, cellSize); }
-            else if (val === 3) { ctx.fillStyle = "#ffffff"; ctx.fillRect(c*cellSize, r*cellSize, cellSize, cellSize); }
+            if (val === 0) continue;
+
+            if (val === 1) { // Snake
+                ctx.shadowBlur = 15; ctx.shadowColor = "#00f3ff"; ctx.fillStyle = "#00f3ff";
+            } else if (val === 2) { // Food
+                ctx.shadowBlur = 15; ctx.shadowColor = "#bc13fe"; ctx.fillStyle = "#bc13fe";
+            } else if (val === 3) { // Wall
+                ctx.shadowBlur = 10; ctx.shadowColor = "#ffffff"; ctx.fillStyle = "#ffffff";
+            }
+
+            ctx.fillRect(c*cellSize + 1, r*cellSize + 1, cellSize - 2, cellSize - 2);
+            ctx.shadowBlur = 0;
         }
     }
 }
@@ -223,5 +235,5 @@ async function checkActiveTrainings() {
                 </div>`
             ).join('');
         }
-    } catch(e) { console.error("Erreur check jobs:", e); }
+    } catch(e) {}
 }
