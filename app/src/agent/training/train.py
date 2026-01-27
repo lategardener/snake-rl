@@ -55,7 +55,7 @@ class TrainingStateManager:
 training_manager = TrainingStateManager()
 
 
-# --- CALLBACK DE STREAMING ---
+# --- CALLBACK DE STREAMING SIMPLIFIÉ ---
 class StreamCallback(BaseCallback):
     def __init__(self, run_id, total_timesteps, verbose=0):
         super().__init__(verbose)
@@ -64,22 +64,18 @@ class StreamCallback(BaseCallback):
         self.last_update = 0
 
     def _on_step(self) -> bool:
-        # On limite l'envoi à ~10 fois par seconde pour ne pas saturer
-        if time.time() - self.last_update > 0.1:
+        # Mise à jour toutes les secondes pour la barre de progression
+        if time.time() - self.last_update > 1.0:
             try:
-                # Récupère l'état de TOUS les environnements parallèles
-                grids = self.training_env.env_method("get_state")
-
-                # Calcul progression
+                # CALCUL DE PROGRESSION UNIQUEMENT (On ne touche plus à env_method("get_state"))
                 progress = self.num_timesteps / self.total_timesteps
 
-                # Récupère infos de reward si dispo
                 stats = {}
                 if len(self.model.ep_info_buffer) > 0:
                     stats['mean_reward'] = safe_mean([ep['r'] for ep in self.model.ep_info_buffer])
 
-                # Mise à jour du manager global
-                training_manager.update(self.run_id, progress, grids, stats)
+                # On envoie une liste vide [] au lieu des grilles
+                training_manager.update(self.run_id, progress, [], stats)
                 self.last_update = time.time()
             except Exception:
                 pass

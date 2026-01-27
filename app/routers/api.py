@@ -228,25 +228,28 @@ def list_active_jobs():
 @router.websocket("/ws/training/{run_id}")
 async def websocket_endpoint(websocket: WebSocket, run_id: str):
     """
-    Canal temps réel pour voir les grilles (Unity-style).
+    Canal temps réel simplifié : envoie uniquement la progression et les stats.
     """
     await websocket.accept()
     try:
         while True:
-            # Récupération des données depuis le manager en mémoire
             data = training_manager.get_status(run_id)
 
             if data:
-                # Envoi des données au frontend (JSON)
-                # Contient : progress (0-1), grids (liste des 4/8 grilles), stats
-                await websocket.send_json(data)
+                # On crée un objet léger sans les grilles pour économiser la bande passante
+                payload = {
+                    "progress": data.get("progress", 0),
+                    "stats": data.get("stats", {}),
+                    "timestamp": data.get("timestamp")
+                }
+                await websocket.send_json(payload)
             else:
-                # Si le run_id n'existe plus, c'est que c'est fini ou planté
                 await websocket.send_json({"status": "finished"})
                 break
 
-            # 10 FPS max pour économiser la bande passante
-            await asyncio.sleep(0.1)
+            # On peut ralentir à 1 FPS (1 seconde) car une barre de progression
+            # n'a pas besoin de 10 mises à jour par seconde.
+            await asyncio.sleep(1.0)
 
     except WebSocketDisconnect:
         print(f"🔌 Client déconnecté du stream {run_id}")

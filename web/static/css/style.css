@@ -568,3 +568,27 @@ input:checked + .slider:before { transform: translateX(26px); }
 /* Variante pour les erreurs (Rouge/Rose) */
 .modal-box.error { border-color: var(--neon-pink); }
 .modal-box.error .modal-title { color: var(--neon-pink); text-shadow: 0 0 10px var(--neon-pink); }
+
+
+
+.job-progress-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    padding: 15px;
+    border-radius: 12px;
+}
+.progress-track {
+    width: 100%;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+    box-shadow: 0 0 10px var(--neon-blue);
+    transition: width 0.4s ease;
+}
