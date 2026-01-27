@@ -82,7 +82,7 @@ def list_models():
         models = []
         for f in files:
             if f.endswith("metadata.json"):
-                path = hf_hub_download(repo_id="snakeRL/snake-rl-models", filename=f, force_download=True)
+                path = hf_hub_download(repo_id="snakeRL/snake-rl-models", filename=f, force_download=True, token=os.getenv("HF_HUB_TOKEN"))
                 with open(path, "r") as j: data = json.load(j)
                 models.append(ModelInfo(
                     uuid=data.get("uuid"), grid_size=data.get("grid_size"),
@@ -151,6 +151,6 @@ async def ws_endpoint(websocket: WebSocket, run_id: str):
             else:
                 await websocket.send_json({"status": "finished"})
                 break
-            await asyncio.sleep(1.0)  # 1 FPS suffisant
+            await asyncio.sleep(1.0)
     except WebSocketDisconnect:
         pass
