@@ -87,7 +87,7 @@ async function launchTraining() {
 
     const payload = {
         timesteps: parseInt(document.getElementById('train-timesteps').value),
-        n_envs: parseInt(selectedModel.n_envs || 4),
+        n_envs: 4, // Fixé à 4 pour la grille 2x2
         grid_size: parseInt(selectedModel.grid_size),
         game_mode: document.getElementById('train-mode').value,
         base_uuid: selectedModel.uuid
@@ -106,7 +106,7 @@ async function launchTraining() {
 
         if (data.run_id) {
             showAlert("TRAINING INITIATED", `Run ID: ${data.run_id.substring(0,8)}`, "success");
-            connectToUnityStream(data.run_id, payload.n_envs, payload.grid_size);
+            connectToUnityStream(data.run_id, 4, payload.grid_size);
             checkActiveTrainings();
             btn.innerText = "🚀 START RETRAINING";
         }
@@ -115,31 +115,28 @@ async function launchTraining() {
     }
 }
 
-// --- VISUALISATION UNITY-STYLE ---
+// --- VISUALISATION MULTI-ENV ---
 function connectToUnityStream(runId, nEnvs, gridSize) {
     if (currentSocket) currentSocket.close();
 
     activeRunId = runId;
     const container = document.getElementById('unity-container');
-    container.innerHTML = ''; // Nettoyage
+    container.innerHTML = '';
     document.getElementById('live-indicator').style.display = 'block';
 
     const ctxs = [];
 
-    for(let i=0; i<nEnvs; i++) {
+    // On crée exactement le nombre d'environnements prévus
+    for(let i=0; i < nEnvs; i++) {
         const wrap = document.createElement('div');
         wrap.className = 'env-wrapper';
-        wrap.id = `env-wrap-${i}`;
-
-        const label = document.createElement('span');
-        label.className = 'env-label';
-        label.innerText = `ENV ${i}`;
+        wrap.innerHTML = `<span class="env-label">ENV ${i}</span>`;
 
         const cvs = document.createElement('canvas');
-        cvs.width = 300; cvs.height = 300;
+        cvs.width = 300;
+        cvs.height = 300;
         cvs.className = 'env-canvas';
 
-        wrap.appendChild(label);
         wrap.appendChild(cvs);
         container.appendChild(wrap);
         ctxs.push(cvs.getContext('2d'));
@@ -150,43 +147,52 @@ function connectToUnityStream(runId, nEnvs, gridSize) {
 
     currentSocket = new WebSocket(wsUrl);
 
-    //
     currentSocket.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
+        // 1. Gestion des erreurs envoyées par le serveur
+        if (data.stats && data.stats.status === 'error') {
+            currentSocket.close();
+            showAlert("TRAINING FAILED", data.stats.message, "error");
+            return;
+        }
+
+        // 2. Bannière de fin
         if (data.status === 'finished') {
             currentSocket.close();
             document.getElementById('live-indicator').style.display = 'none';
 
-            // Création de la barrière visuelle
-            const barrier = document.createElement('div');
-            barrier.className = 'training-overlay';
-            barrier.innerHTML = '<h2>TRAINING COMPLETE</h2>';
-            document.getElementById('unity-container').appendChild(barrier);
+            const banner = document.createElement('div');
+            banner.className = 'training-overlay';
+            banner.innerHTML = '<h2>TRAINING COMPLETE</h2>';
+            container.appendChild(banner);
 
-            showAlert("SUCCESS", "Training finished and uploaded.", "success");
+            showAlert("MISSION ACCOMPLISHED", "Model updated and stored successfully.", "success");
+            loadModels();
             return;
         }
 
-        if (data.grids) {
+        // 3. Dessin des grilles (Correction de la condensation)
+        if (data.grids && Array.isArray(data.grids)) {
             data.grids.forEach((envData, idx) => {
-                if (ctxs[idx]) {
-                    const grid = envData.grid || envData;
-                    drawNeonGrid(ctxs[idx], grid, gridSize); // Ta nouvelle fonction néon
+                // On s'assure de dessiner dans le bon canvas par index
+                if (idx < ctxs.length) {
+                    const grid = envData.grid ? envData.grid : envData;
+                    drawNeonGrid(ctxs[idx], grid, gridSize);
                 }
             });
         }
     };
 }
 
-// --- MOTEUR DE RENDU NÉON (Style Player Zone) ---
+// --- MOTEUR DE RENDU NÉON ---
 function drawNeonGrid(ctx, grid, size) {
     const width = ctx.canvas.width;
     const cellSize = width / size;
 
-    // 1. Fond et Grillage
     ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, width, width);
+
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.lineWidth = 1;
     for(let i=0; i<=size; i++) {
@@ -198,21 +204,16 @@ function drawNeonGrid(ctx, grid, size) {
         ctx.stroke();
     }
 
-    if(!grid) return;
+    if(!grid || !Array.isArray(grid)) return;
 
-    // 2. Éléments
     for(let r=0; r<size; r++) {
         for(let c=0; c<size; c++) {
             const val = grid[r][c];
             if (val === 0) continue;
 
-            if (val === 1) { // Snake
-                ctx.shadowBlur = 15; ctx.shadowColor = "#00f3ff"; ctx.fillStyle = "#00f3ff";
-            } else if (val === 2) { // Food
-                ctx.shadowBlur = 15; ctx.shadowColor = "#bc13fe"; ctx.fillStyle = "#bc13fe";
-            } else if (val === 3) { // Wall
-                ctx.shadowBlur = 10; ctx.shadowColor = "#ffffff"; ctx.fillStyle = "#ffffff";
-            }
+            if (val === 1) { ctx.shadowBlur = 15; ctx.shadowColor = "#00f3ff"; ctx.fillStyle = "#00f3ff"; }
+            else if (val === 2) { ctx.shadowBlur = 15; ctx.shadowColor = "#bc13fe"; ctx.fillStyle = "#bc13fe"; }
+            else if (val === 3) { ctx.shadowBlur = 10; ctx.shadowColor = "#ffffff"; ctx.fillStyle = "#ffffff"; }
 
             ctx.fillRect(c*cellSize + 1, r*cellSize + 1, cellSize - 2, cellSize - 2);
             ctx.shadowBlur = 0;
