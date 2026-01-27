@@ -6,7 +6,7 @@ services:
     build: .
     container_name: snake-ai-container
     ports:
-      - "5000:5000"
+      - "5000:10000"
     volumes:
       - .:/app
     # Charge les variables du fichier .env (surtout le HF_HUB_TOKEN)
@@ -51,7 +51,6 @@ services:
       "mlflow", "server", 
       "--backend-store-uri", "${MLFLOW_TRACKING_URI}", 
       "--artifacts-destination", "/app/artifacts", 
-      "--host", "0.0.0.0",
-      "--allowed-hosts", "*"
+      "--host", "0.0.0.0"
     ]
     restart: always
