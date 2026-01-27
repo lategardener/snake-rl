@@ -480,3 +480,91 @@ input:checked + .slider:before { transform: translateX(26px); }
     color: #666;
     pointer-events: none; /* Empêche tout clic */
 }
+
+
+/* --- CUSTOM MODALS (Pour remplacer alert/prompt) --- */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: none; /* Caché par défaut */
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.active {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-box {
+    background: rgba(10, 10, 20, 0.9);
+    border: 1px solid var(--neon-blue);
+    padding: 30px;
+    border-radius: 15px;
+    width: 400px;
+    text-align: center;
+    box-shadow: 0 0 30px rgba(0, 243, 255, 0.15);
+    transform: scale(0.9);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+}
+
+.modal-overlay.active .modal-box {
+    transform: scale(1);
+}
+
+.modal-title {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    color: var(--neon-blue);
+    margin-bottom: 15px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+}
+
+.modal-message {
+    color: var(--text-muted);
+    font-size: 1rem;
+    margin-bottom: 25px;
+    line-height: 1.5;
+}
+
+/* Input stylisé pour le mot de passe */
+.modal-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    border-bottom: 2px solid var(--neon-blue);
+    color: white;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    padding: 10px;
+    text-align: center;
+    margin-bottom: 25px;
+    outline: none;
+    transition: 0.3s;
+}
+
+.modal-input:focus {
+    background: rgba(0, 243, 255, 0.1);
+    box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+/* Variante pour les succès (Vert) */
+.modal-box.success { border-color: var(--neon-green); }
+.modal-box.success .modal-title { color: var(--neon-green); text-shadow: 0 0 10px var(--neon-green); }
+
+/* Variante pour les erreurs (Rouge/Rose) */
+.modal-box.error { border-color: var(--neon-pink); }
+.modal-box.error .modal-title { color: var(--neon-pink); text-shadow: 0 0 10px var(--neon-pink); }

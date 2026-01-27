@@ -8,9 +8,73 @@
     <style>
         .admin-layout { display: grid; grid-template-columns: 300px 1fr 350px; gap: 20px; width: 95vw; height: 90vh; margin: 20px auto; }
         .model-list-panel { grid-column: 1; display: flex; flex-direction: column; overflow: hidden; }
-        .monitor-panel { grid-column: 2; display: flex; flex-direction: column; align-items: center; position: relative; }
-        .unity-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; height: 100%; overflow-y: auto; padding: 10px; }
-        .env-canvas { background: #000; border: 1px solid #333; border-radius: 4px; width: 100%; }
+
+        /* --- STYLE CORRIGÉ POUR LE MONITORING --- */
+        .monitor-panel {
+            grid-column: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            overflow: hidden; /* Empêche le scroll global */
+            height: 100%;
+        }
+
+        .arena-header {
+            flex: 0 0 auto; /* Taille fixe pour le titre */
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        /* La grille magique qui force le 2x2 sans dépasser */
+        .unity-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr); /* Force 2 lignes égales */
+            gap: 8px;
+            width: 100%;
+            flex: 1; /* Prend tout l'espace restant */
+            overflow: hidden;
+            padding-bottom: 10px;
+        }
+
+        /* Conteneur individuel pour centrer l'image */
+        .env-wrapper {
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 4px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Le canvas s'adapte sans être déformé */
+        .env-canvas {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain; /* Ajoute des bandes noires si besoin, garde le ratio */
+            image-rendering: pixelated;
+        }
+
+        /* Petit label ENV 0, ENV 1... */
+        .env-label {
+            position: absolute;
+            top: 4px;
+            left: 6px;
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.6);
+            background: rgba(0,0,0,0.6);
+            padding: 2px 5px;
+            border-radius: 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        /* ---------------------------------------- */
+
         .details-panel { grid-column: 3; display: flex; flex-direction: column; gap: 20px; }
 
         .info-card {
@@ -21,13 +85,12 @@
 
         .train-form { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
 
-        /* Style pour les champs verrouillés */
         .locked-field {
             background: rgba(255, 255, 255, 0.05) !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             color: #888 !important;
             cursor: not-allowed;
-            pointer-events: none; /* Supprime toute interaction */
+            pointer-events: none;
         }
 
         input, select {
@@ -68,7 +131,7 @@
                 <div id="live-indicator" class="live-tag">● LIVE FEED</div>
             </div>
             <div id="unity-container" class="unity-grid">
-                <div style="grid-column: 1/-1; text-align: center; color: #666; margin-top: 100px;">
+                <div style="grid-column: 1/-1; align-self: center; text-align: center; color: #666;">
                     SELECT A MODEL TO MONITOR TRAINING
                 </div>
             </div>
@@ -116,6 +179,19 @@
         </aside>
     </div>
 
+    <div id="customAlertOverlay" class="modal-overlay">
+        <div id="customAlertBox" class="modal-box">
+            <div id="alertTitle" class="modal-title">TITLE</div>
+            <p id="alertMessage" class="modal-message">Message content...</p>
+
+            <div class="modal-buttons">
+                <button onclick="closeCustomAlert()" class="neon-btn">ACKNOWLEDGE</button>
+            </div>
+        </div>
+    </div>
+
     <script src="./static/js/admin.js"></script>
+</body>
+</html>
 </body>
 </html>

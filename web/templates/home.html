@@ -20,10 +20,7 @@
     </style>
 </head>
 <body>
-    <div class="background-blobs">
-        <div class="blob blob-1"></div>
-        <div class="blob blob-2"></div>
-    </div>
+    <div class="background-blobs"><div class="blob blob-1"></div><div class="blob blob-2"></div></div>
 
     <div style="display:flex; flex-direction:column; align-items:center;">
         <h1>NEURAL ARCADE</h1>
@@ -35,7 +32,7 @@
                 <p class="subtitle">Challenge the AI</p>
             </div>
 
-            <div class="portal-card admin" onclick="checkAdmin()">
+            <div class="portal-card admin" onclick="openLoginModal()">
                 <span class="icon">👨‍💻</span>
                 <h2>ADMIN ACCESS</h2>
                 <p class="subtitle">Train & Monitor</p>
@@ -43,16 +40,60 @@
         </div>
     </div>
 
+    <div id="loginOverlay" class="modal-overlay">
+        <div class="modal-box error"> <div class="modal-title">SECURITY CHECK</div>
+            <p class="modal-message">Restricted Area. Please identify.</p>
+
+            <input type="password" id="adminPass" class="modal-input" placeholder="ENTER PASSWORD">
+
+            <div class="modal-buttons">
+                <button onclick="closeLoginModal()" class="neon-btn" style="border-color: #555; color: #aaa;">CANCEL</button>
+                <button onclick="checkAdmin()" class="neon-btn btn-warning">UNLOCK</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        const modal = document.getElementById('loginOverlay');
+        const input = document.getElementById('adminPass');
+
+        function openLoginModal() {
+            modal.classList.add('active');
+            setTimeout(() => input.focus(), 100); // Focus automatique
+        }
+
+        function closeLoginModal() {
+            modal.classList.remove('active');
+            input.value = "";
+        }
+
         function checkAdmin() {
-            // Simulation de sécurité (A remplacer par un vrai login plus tard)
-            const pass = prompt("Enter Admin Password:");
-            if(pass === "admin123") { // Mot de passe simple pour le test
+            if(input.value === "admin123") {
                 window.location.href = "/admin";
             } else {
-                alert("Access Denied");
+                // Animation de secousse en cas d'erreur
+                const box = document.querySelector('.modal-box');
+                box.style.animation = "shake 0.3s";
+                setTimeout(() => box.style.animation = "", 300);
+                input.value = "";
+                input.placeholder = "ACCESS DENIED";
             }
         }
+
+        // Touche Entrée pour valider
+        input.addEventListener("keypress", function(event) {
+            if (event.key === "Enter") checkAdmin();
+        });
     </script>
+
+    <style>
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+            100% { transform: translateX(0); }
+        }
+    </style>
 </body>
 </html>
