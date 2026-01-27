@@ -3,31 +3,31 @@ FROM python:3.10-slim
 # Optimisations Python
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+# Force Pygame à fonctionner sans écran (Headless)
+ENV SDL_VIDEODRIVER=dummy
 
-# Installation des dépendances système (Nécessaire pour Gym/OpenCV)
-# J'ai ajouté libglib2.0-0 qui manque souvent pour OpenCV sur slim
+# Installation des dépendances système
+# Ajout des librairies SDL pour Pygame
 RUN apt-get update && apt-get install -y \
     build-essential \
-    libgl1 \
-    libglx-mesa0 \
-    libosmesa6-dev \
-    freeglut3-dev \
-    libglu1-mesa \
+    libgl1-mesa-dev \
     libglib2.0-0 \
+    libsdl2-dev \
+    libsdl2-image-dev \
+    libsdl2-mixer-dev \
+    libsdl2-ttf-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Installation des dépendances Python
+# ÉTAPE CRITIQUE : Installer les dépendances AVANT de copier le reste du code
+# Cela permet de mettre en cache l'installation lourde (Torch, MLflow, Pygame)
 COPY requirements.txt .
-# Le --no-cache-dir est très important pour ne pas exploser le disque de Render
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copie du code
+# Copie du reste du projet
 COPY . .
 
-# Render définit automatiquement la variable d'environnement PORT.
-# Si elle n'est pas là, on utilise 10000 par défaut (standard Render).
-# Note : On n'utilise pas les crochets ["..."] ici pour permettre l'expansion de la variable ${PORT}
+# Commande de démarrage
 CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}
-

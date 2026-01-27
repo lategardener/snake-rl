@@ -87,7 +87,7 @@ class StreamCallback(BaseCallback):
 
 
 def train_snake(
-        run_id: str,  # <--- NOUVEAU : ID unique pour le suivi
+        run_id: str,
         timesteps: int = 100_000,
         grid_size: int = None,
         n_envs: int = 4,
