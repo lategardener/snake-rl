@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Snake AI • Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./static/css/style.css">
+    <style>
+        .portal-container { display: flex; gap: 40px; text-align: center; }
+        .portal-card {
+            width: 300px; padding: 40px;
+            background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border);
+            border-radius: 20px; transition: 0.3s; cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+        .portal-card:hover { transform: translateY(-10px); box-shadow: 0 0 30px var(--neon-blue); border-color: var(--neon-blue); }
+        .portal-card.admin:hover { box-shadow: 0 0 30px var(--neon-pink); border-color: var(--neon-pink); }
+        .icon { font-size: 4rem; margin-bottom: 20px; display: block; }
+        h1 { font-family: var(--font-display); margin-bottom: 40px; font-size: 3rem; text-shadow: 0 0 20px white; }
+    </style>
+</head>
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center;">
+        <h1>NEURAL ARCADE</h1>
+
+        <div class="portal-container">
+            <div class="portal-card" onclick="window.location.href='/game'">
+                <span class="icon">🎮</span>
+                <h2>PLAYER ZONE</h2>
+                <p class="subtitle">Challenge the AI</p>
+            </div>
+
+            <div class="portal-card admin" onclick="checkAdmin()">
+                <span class="icon">👨‍💻</span>
+                <h2>ADMIN ACCESS</h2>
+                <p class="subtitle">Train & Monitor</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function checkAdmin() {
+            // Simulation de sécurité (A remplacer par un vrai login plus tard)
+            const pass = prompt("Enter Admin Password:");
+            if(pass === "admin123") { // Mot de passe simple pour le test
+                window.location.href = "/admin";
+            } else {
+                alert("Access Denied");
+            }
+        }
+    </script>
+</body>
+</html>
