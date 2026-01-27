@@ -17,7 +17,6 @@ from stable_baselines3.common.utils import safe_mean
 from stable_baselines3.common.callbacks import BaseCallback
 
 # Imports locaux
-from app.src.env.snake_env import SnakeEnv
 from app.src.agent.utils.mlflow_wrapper import SnakeHFModel
 from app.src.agent.utils.callbacks import MLflowLoggingCallback
 from app.src.agent.utils.loading import load_snake_model_data
