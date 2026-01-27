@@ -1,5 +1,8 @@
+import asyncio
+import uuid
+
 import torch
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Any
 import os
@@ -9,6 +12,9 @@ from huggingface_hub import HfApi, hf_hub_download
 from stable_baselines3 import PPO
 from dotenv import load_dotenv
 from prometheus_client import Counter
+from starlette.websockets import WebSocket, WebSocketDisconnect
+
+from app.src.agent.training.train import train_snake, training_manager
 
 load_dotenv()
 
@@ -48,6 +54,19 @@ class LoadModelRequest(BaseModel):
 
 class StartGameRequest(BaseModel):
     grid_size: int
+
+
+class TrainRequest(BaseModel):
+    base_uuid: str | None = None
+    grid_size: int = 10
+    timesteps: int = 50_000
+    n_envs: int = 4
+    game_mode: str = "classic"
+
+
+class TrainingResponse(BaseModel):
+    run_id: str
+    status: str
 
 
 # --- GESTIONNAIRE D'ÉTAT ---
@@ -176,3 +195,58 @@ def predict_move(state: GameState):
         "action": int(action),
         "probabilities": probs
     }
+
+
+@router.post("/train/start", response_model=TrainingResponse)
+def start_training_job(req: TrainRequest, background_tasks: BackgroundTasks):
+    """
+    Lance un job d'entraînement en arrière-plan (Background Task).
+    Renvoie un run_id pour se connecter au WebSocket.
+    """
+    run_id = str(uuid.uuid4())
+
+    # Lancement asynchrone
+    background_tasks.add_task(
+        train_snake,
+        run_id=run_id,
+        timesteps=req.timesteps,
+        grid_size=req.grid_size,
+        n_envs=req.n_envs,
+        game_mode=req.game_mode,
+        base_uuid=req.base_uuid
+    )
+
+    return {"run_id": run_id, "status": "started"}
+
+
+@router.get("/train/active")
+def list_active_jobs():
+    """Liste les IDs des entraînements en cours."""
+    return list(training_manager.active_trainings.keys())
+
+
+@router.websocket("/ws/training/{run_id}")
+async def websocket_endpoint(websocket: WebSocket, run_id: str):
+    """
+    Canal temps réel pour voir les grilles (Unity-style).
+    """
+    await websocket.accept()
+    try:
+        while True:
+            # Récupération des données depuis le manager en mémoire
+            data = training_manager.get_status(run_id)
+
+            if data:
+                # Envoi des données au frontend (JSON)
+                # Contient : progress (0-1), grids (liste des 4/8 grilles), stats
+                await websocket.send_json(data)
+            else:
+                # Si le run_id n'existe plus, c'est que c'est fini ou planté
+                await websocket.send_json({"status": "finished"})
+                break
+
+            # 10 FPS max pour économiser la bande passante
+            await asyncio.sleep(0.1)
+
+    except WebSocketDisconnect:
+        print(f"🔌 Client déconnecté du stream {run_id}")

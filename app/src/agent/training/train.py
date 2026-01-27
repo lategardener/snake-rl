@@ -1,8 +1,10 @@
 import os
 import uuid
 import json
+import time
 import mlflow
 import tempfile
+import threading
 from datetime import datetime
 from pathlib import Path
 import textwrap
@@ -13,6 +15,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.utils import safe_mean
+from stable_baselines3.common.callbacks import BaseCallback
 
 # Imports locaux
 from app.src.env.snake_env import SnakeEnv
@@ -24,11 +27,67 @@ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 load_dotenv()
 hf_token = os.getenv("HF_HUB_TOKEN")
-if not hf_token:
-    raise ValueError("⚠️ Variable HF_HUB_TOKEN manquante.")
+
+
+# --- GESTIONNAIRE D'ÉTAT GLOBAL (Pour le Streaming WebSocket) ---
+class TrainingStateManager:
+    def __init__(self):
+        # Stocke : { "run_uuid": { "progress": 0.5, "grids": [...], "timestamp": ... } }
+        self.active_trainings = {}
+
+    def update(self, run_id, progress, grids, stats=None):
+        self.active_trainings[run_id] = {
+            "progress": progress,
+            "grids": grids,  # Liste des grilles de tous les envs
+            "stats": stats,  # Reward moyen etc.
+            "timestamp": time.time()
+        }
+
+    def get_status(self, run_id):
+        return self.active_trainings.get(run_id, None)
+
+    def stop_training(self, run_id):
+        if run_id in self.active_trainings:
+            del self.active_trainings[run_id]
+
+
+# Instance unique partagée
+training_manager = TrainingStateManager()
+
+
+# --- CALLBACK DE STREAMING ---
+class StreamCallback(BaseCallback):
+    def __init__(self, run_id, total_timesteps, verbose=0):
+        super().__init__(verbose)
+        self.run_id = run_id
+        self.total_timesteps = total_timesteps
+        self.last_update = 0
+
+    def _on_step(self) -> bool:
+        # On limite l'envoi à ~10 fois par seconde pour ne pas saturer
+        if time.time() - self.last_update > 0.1:
+            try:
+                # Récupère l'état de TOUS les environnements parallèles
+                grids = self.training_env.env_method("get_state")
+
+                # Calcul progression
+                progress = self.num_timesteps / self.total_timesteps
+
+                # Récupère infos de reward si dispo
+                stats = {}
+                if len(self.model.ep_info_buffer) > 0:
+                    stats['mean_reward'] = safe_mean([ep['r'] for ep in self.model.ep_info_buffer])
+
+                # Mise à jour du manager global
+                training_manager.update(self.run_id, progress, grids, stats)
+                self.last_update = time.time()
+            except Exception:
+                pass
+        return True
 
 
 def train_snake(
+        run_id: str,  # <--- NOUVEAU : ID unique pour le suivi
         timesteps: int = 100_000,
         grid_size: int = None,
         n_envs: int = 4,
@@ -37,157 +96,146 @@ def train_snake(
         hf_repo_id: str = "snakeRL/snake-rl-models",
         base_uuid: str = None
 ):
+    if not hf_token:
+        print("⚠️ Token HF manquant")
+        return
+
     # Initialisation
     now = datetime.now()
     readable_date = now.strftime("%d/%m/%Y %H:%M:%S")
     date_str = now.strftime("%Y%m%d_%H%M%S")
     new_agent_uuid = str(uuid.uuid4())
 
-    if algorithm != "PPO":
-        raise ValueError("⚠️ Seul l'algorithme PPO est supporté pour le moment.")
+    print(f"🚀 Lancement entraînement {run_id} (Background)...")
 
     agent = None
     is_finetuning = False
 
-    # --- LOGIQUE DE CHARGEMENT (FINE-TUNING) ---
+    # --- LOGIQUE DE CHARGEMENT (Identique à avant) ---
     if base_uuid:
-        print(f"Tentative de récupération du modèle {base_uuid}...")
         try:
-            # 1. Chargement de l'agent
             agent, loaded_grid_size = load_snake_model_data(base_uuid, hf_repo_id)
-
-            if agent is None or loaded_grid_size is None:
-                raise ValueError(f"Le modèle {base_uuid} est introuvable.")
+            if agent is None: raise ValueError("Modèle introuvable")
 
             grid_size = loaded_grid_size
             is_finetuning = True
             mode_label = "FINE-TUNING"
 
-            # 2. Récupération des métadonnées pour le game_mode
+            # Récup Metadata
             try:
                 model_folder = f"{grid_size}x{grid_size}/{base_uuid}"
-                meta_path = hf_hub_download(
-                    repo_id=hf_repo_id,
-                    filename=f"{model_folder}/metadata.json"
-                )
-
+                meta_path = hf_hub_download(repo_id=hf_repo_id, filename=f"{model_folder}/metadata.json")
                 with open(meta_path, 'r') as f:
                     old_meta = json.load(f)
 
-                if "n_envs" in old_meta:
-                    n_envs = old_meta["n_envs"]
-
-                # RECUPERATION CRITIQUE DU MODE DE JEU
-                if "game_mode" in old_meta:
-                    prev_mode = old_meta["game_mode"]
-                    print(f"🔄 Mode de jeu détecté sur le parent : '{prev_mode}'. Application forcée.")
-                    game_mode = prev_mode
-                else:
-                    print(f"⚠️ Pas de game_mode dans les métadonnées. Utilisation du paramètre : {game_mode}")
-
+                if "n_envs" in old_meta: n_envs = old_meta["n_envs"]
+                if "game_mode" in old_meta: game_mode = old_meta["game_mode"]  # Force le mode
             except Exception as e:
-                print(f"⚠️ Impossible de lire les métadonnées complètes ({e}).")
-
-            print(f"✅ Modèle chargé. Grille {grid_size}x{grid_size}, Mode {game_mode}, {n_envs} envs.")
+                print(f"⚠️ Erreur metadata: {e}")
 
         except Exception as e:
-            print(f"❌ Erreur critique chargement {base_uuid} : {e}")
+            print(f"❌ Erreur Load: {e}")
+            training_manager.stop_training(run_id)
             return
     else:
         if grid_size is None:
-            raise ValueError("⚠️ 'grid_size' requis pour un nouvel entraînement.")
+            training_manager.stop_training(run_id)
+            return
         mode_label = "NEW_TRAINING"
-        print(f"✨ Nouvel agent : Grille {grid_size}x{grid_size}, Mode {game_mode}, {n_envs} envs.")
 
-    # --- CONFIGURATION MLFLOW ---
+    # --- CONFIG MLFLOW ---
     run_name = f"{mode_label}_{date_str}_{new_agent_uuid[:8]}"
     mlflow.set_experiment(f"Snake_{grid_size}x{grid_size}")
 
-    print(f"\nDémarrage Run MLflow : {run_name}")
+    try:
+        with mlflow.start_run(run_name=run_name) as run:
+            # Tags & Params
+            mlflow.set_tag("agent_uuid", new_agent_uuid)
+            mlflow.set_tag("hf_repo", hf_repo_id)
+            mlflow.set_tag("game_mode", game_mode)
+            if base_uuid: mlflow.set_tag("parent_model_uuid", base_uuid)
 
-    with mlflow.start_run(run_name=run_name) as run:
-        # Tags
-        mlflow.set_tag("agent_uuid", new_agent_uuid)
-        mlflow.set_tag("hf_repo", hf_repo_id)
-        mlflow.set_tag("game_mode", game_mode)
-        if base_uuid:
-            mlflow.set_tag("parent_model_uuid", base_uuid)
+            mlflow.log_params({
+                "algorithm": algorithm, "grid_size": grid_size, "n_envs": n_envs,
+                "game_mode": game_mode, "timesteps": timesteps,
+                "base_model": base_uuid if base_uuid else "None"
+            })
 
-        # Params
-        mlflow.log_params({
-            "algorithm": algorithm,
-            "grid_size": grid_size,
-            "n_envs": n_envs,
-            "game_mode": game_mode,
-            "timesteps": timesteps,
-            "base_model": base_uuid if base_uuid else "None"
-        })
-
-        # --- CRÉATION ENVIRONNEMENT ---
-        env = make_vec_env(
-            lambda: Monitor(SnakeEnv(grid_size=grid_size, render_mode=None, game_mode=game_mode)),
-            n_envs=n_envs
-        )
-
-        if is_finetuning:
-            agent.set_env(env)
-        else:
-            agent = PPO("MlpPolicy", env, verbose=1)
-
-        # --- ENTRAÎNEMENT ---
-        print(f"Go pour {timesteps} steps...")
-        agent.learn(
-            total_timesteps=timesteps,
-            callback=MLflowLoggingCallback(),
-            reset_num_timesteps=not is_finetuning
-        )
-
-        # --- SAUVEGARDE ---
-        print("\nSauvegarde...")
-        with tempfile.TemporaryDirectory() as temp_dir_str:
-            temp_dir = Path(temp_dir_str)
-
-            agent.save(temp_dir / "model.zip")
-
-            hf_folder = f"{grid_size}x{grid_size}/{new_agent_uuid}"
-            final_reward = safe_mean([ep["r"] for ep in agent.ep_info_buffer]) if agent.ep_info_buffer else None
-
-            metadata = {
-                "uuid": new_agent_uuid,
-                "type": "finetuned" if is_finetuning else "fresh",
-                "parent_uuid": base_uuid,
-                "grid_size": grid_size,
-                "n_envs": n_envs,
-                "game_mode": game_mode,  # Sauvegarde du mode
-                "algorithm": algorithm,
-                "date": readable_date,
-                "final_mean_reward": final_reward,
-                "hf_folder": hf_folder,
-                "mlflow_run_id": run.info.run_id
-            }
-
-            with open(temp_dir / "metadata.json", "w") as f:
-                json.dump(metadata, f, indent=4)
-
-            # Upload HF
-            api = HfApi(token=hf_token)
-            api.create_repo(repo_id=hf_repo_id, repo_type="model", exist_ok=True, private=True)
-            api.upload_folder(
-                folder_path=str(temp_dir),
-                path_in_repo=hf_folder,
-                repo_id=hf_repo_id,
-                commit_message=f"Add {mode_label} model ({game_mode}) {new_agent_uuid}"
+            # --- ENVIRONNEMENT ---
+            env = make_vec_env(
+                lambda: Monitor(SnakeEnv(grid_size=grid_size, render_mode=None, game_mode=game_mode)),
+                n_envs=n_envs
             )
 
-            # Model Registry (Optionnel mais recommandé)
-            hf_url = f"https://huggingface.co/{hf_repo_id}/tree/main/{hf_folder}"
-            note = textwrap.dedent(f"""\
-                ### {mode_label} - Snake {grid_size}x{grid_size}
-                **ID :** `{new_agent_uuid}`
-                **Mode :** {game_mode.upper()} 
-                **Reward :** {final_reward}
-                [Voir sur Hugging Face]({hf_url})
-                """)
-            mlflow.set_tag("mlflow.note.content", note)
+            if is_finetuning:
+                agent.set_env(env)
+            else:
+                agent = PPO("MlpPolicy", env, verbose=0)  # Verbose 0 pour ne pas polluer les logs
 
-            print(f"Terminé ! Modèle {game_mode} dispo : {new_agent_uuid}")
+            # --- ENTRAÎNEMENT AVEC STREAMING ---
+            print(f"Go pour {timesteps} steps...")
+
+            # On combine ton callback MLflow et le nouveau StreamCallback
+            callbacks = [
+                MLflowLoggingCallback(),
+                StreamCallback(run_id, timesteps)
+            ]
+
+            agent.learn(
+                total_timesteps=timesteps,
+                callback=callbacks,
+                reset_num_timesteps=not is_finetuning
+            )
+
+            # --- SAUVEGARDE & UPLOAD (Identique à avant) ---
+            print("\nSauvegarde...")
+            with tempfile.TemporaryDirectory() as temp_dir_str:
+                temp_dir = Path(temp_dir_str)
+                agent.save(temp_dir / "model.zip")
+
+                hf_folder = f"{grid_size}x{grid_size}/{new_agent_uuid}"
+                final_reward = safe_mean([ep["r"] for ep in agent.ep_info_buffer]) if agent.ep_info_buffer else None
+
+                metadata = {
+                    "uuid": new_agent_uuid,
+                    "type": "finetuned" if is_finetuning else "fresh",
+                    "parent_uuid": base_uuid,
+                    "grid_size": grid_size,
+                    "n_envs": n_envs,
+                    "game_mode": game_mode,
+                    "algorithm": algorithm,
+                    "date": readable_date,
+                    "final_mean_reward": final_reward,
+                    "hf_folder": hf_folder,
+                    "mlflow_run_id": run.info.run_id
+                }
+
+                with open(temp_dir / "metadata.json", "w") as f:
+                    json.dump(metadata, f, indent=4)
+
+                api = HfApi(token=hf_token)
+                api.create_repo(repo_id=hf_repo_id, repo_type="model", exist_ok=True, private=True)
+                api.upload_folder(
+                    folder_path=str(temp_dir),
+                    path_in_repo=hf_folder,
+                    repo_id=hf_repo_id,
+                    commit_message=f"Add {mode_label} model ({game_mode}) {new_agent_uuid}"
+                )
+
+                hf_url = f"https://huggingface.co/{hf_repo_id}/tree/main/{hf_folder}"
+                note = textwrap.dedent(f"""\
+                    ### {mode_label} - Snake {grid_size}x{grid_size}
+                    **ID :** `{new_agent_uuid}`
+                    **Mode :** {game_mode.upper()} 
+                    **Reward :** {final_reward}
+                    [Voir sur Hugging Face]({hf_url})
+                    """)
+                mlflow.set_tag("mlflow.note.content", note)
+
+                print(f"Terminé ! Modèle {game_mode} dispo : {new_agent_uuid}")
+
+    except Exception as e:
+        print(f"❌ Erreur fatale training: {e}")
+    finally:
+        # NETTOYAGE CRITIQUE : On signale que le training est fini
+        training_manager.stop_training(run_id)

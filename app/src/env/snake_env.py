@@ -247,7 +247,21 @@ class SnakeEnv(gym.Env):
         for r, c in self.walls:
             grid[r, c] = 3
 
+        # [NOUVEAU] Sauvegarde pour l'API externe (Streaming)
+        self.current_grid_state = grid.tolist()
+
         return grid
+
+
+    def get_state(self):
+        """Retourne l'état brut pour la visualisation web"""
+        return {
+            "grid": getattr(self, "current_grid_state", []),
+            "score": self.step_count,
+            "head": self.snake[0] if self.snake else None,
+            "is_dead": False  # Pourra être amélioré plus tard
+        }
+
 
     def render(self):
         if self.render_mode == "human":
