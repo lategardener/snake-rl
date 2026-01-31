@@ -10,18 +10,26 @@ import numpy as np
 from huggingface_hub import HfApi, hf_hub_download
 from stable_baselines3 import PPO
 from dotenv import load_dotenv
-from prometheus_client import Counter
+from prometheus_client import Counter, REGISTRY 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.src.agent.training.train import train_snake, training_manager
 
 load_dotenv()
+# Spécifiez explicitement le registre lors de la création
+MODELE_LOADED_COUNTER = Counter(
+    'snake_model_loaded_total', 
+    'Modèles chargés', 
+    ['grid_size'],
+    registry=REGISTRY # Force l'enregistrement ici
+)
 
-# --- METRICS ---
-MODELE_LOADED_COUNTER = Counter('snake_model_loaded_total', 'Modèles chargés', ['grid_size'])
-GAMES_STARTED_COUNTER = Counter('snake_games_started_total', 'Parties lancées', ['grid_size'])
-
-
+GAMES_STARTED_COUNTER = Counter(
+    'snake_games_started_total', 
+    'Parties lancées', 
+    ['grid_size'],
+    registry=REGISTRY # Force l'enregistrement ici
+)
 # --- MODELS ---
 class GameState(BaseModel): grid: List[List[int]]
 
@@ -97,7 +105,8 @@ def list_models():
 @router.post("/load")
 def load_model(req: LoadModelRequest):
     if manager.load_model(req.uuid, req.grid_size):
-        MODELE_LOADED_COUNTER.labels(grid_size=str(req.grid_size)).inc()
+        # Incrémentation avec label forcé en string
+        MODELE_LOADED_COUNTER.labels(grid_size=str(req.grid_size)).inc() 
         return {"status": "loaded", "uuid": req.uuid}
     raise HTTPException(404, "Model not found")
 

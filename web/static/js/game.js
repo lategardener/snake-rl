@@ -401,8 +401,21 @@ async function selectModel(model, cardElement) {
     } catch (e) { console.error(e); }
 }
 
-function resetGame() {
+async function resetGame() {
     if (gameLoopInterval) clearInterval(gameLoopInterval);
+    
+    // --- NOUVEL APPEL API POUR LES MÉTRIQUES ---
+    try {
+        await fetch(`${API_BASE_URL}/api/start`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ grid_size: GRID_SIZE })
+        });
+    } catch (e) {
+        console.error("Erreur lors de l'envoi du métrique start_game:", e);
+    }
+    // -------------------------------------------
+
     snake = [{x: Math.floor(GRID_SIZE/2), y: Math.floor(GRID_SIZE/2)}];
     score = 0;
     scoreEl.innerText = score;

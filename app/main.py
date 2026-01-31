@@ -3,14 +3,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator 
+from prometheus_client import REGISTRY
 
 from app.routers import api
 import os
 
 app = FastAPI(title="Snake AI Web App")
-
-# Monitoring Prometheus
-Instrumentator().instrument(app).expose(app)
 
 # Configuration CORS
 app.add_middleware(
@@ -29,6 +27,7 @@ templates = Jinja2Templates(directory="web/templates")
 
 # Inclusion du router API
 app.include_router(api.router, prefix="/api")
+Instrumentator(registry=REGISTRY).instrument(app).expose(app)
 
 # --- ROUTES DES PAGES HTML ---
 

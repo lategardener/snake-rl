@@ -40,4 +40,10 @@ Le panneau **"Brain Visualization"** à droite vous montre en temps réel ce que
 * **Hébergement :** Render & Hugging Face
 
 ---
+
+## Prometheus
+
+Pour avoir les metrics personnalisé (nombre de modèle charger et partie lancé) en locale sur prometheus il est nécessaire de modifier API_BASE_URL et de mettre la valeur window.location.origin, cette variable se trouve dans web/static/js/game.js à la ligne 1.
+Car sinon le backend est lancé par render et vous ne verrez pas les metrics apparaitre en locale.
+
 *Projet réalisé par Marc DJOLE & Sonny BERTHELOT*
