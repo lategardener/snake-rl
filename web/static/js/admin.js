@@ -28,25 +28,27 @@ async function loadModels() {
         container.innerHTML = '';
 
         if(models.length === 0) {
-            container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No models found in repository.</div>';
+            container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No models found.</div>';
             return;
         }
 
+        // Le tri est fait côté backend (3x3 d'abord), on itère simplement
         models.forEach(model => {
             const el = document.createElement('div');
             el.className = 'model-card';
-            // Badge visuel pour le mode
-            const badgeClass = model.game_mode === 'walls' ? 'badge-walls' : 'badge-classic';
-            const badgeText = model.game_mode === 'walls' ? 'WALLS' : 'CLASSIC';
+
+            // Gestion des couleurs de badges selon le grid_size
+            let gridColorClass = model.grid_size === 3 ? 'badge-purple' : 'badge-cyan';
 
             el.innerHTML = `
                 <div class="card-top">
-                    <span class="grid-badge">${model.grid_size}x${model.grid_size}</span>
-                    <span class="mode-badge ${badgeClass}">${badgeText}</span>
+                    <span class="grid-badge ${gridColorClass}">${model.grid_size}x${model.grid_size}</span>
+                    <span class="mode-badge" style="border:1px solid #0ff; color:#0ff;">${model.game_mode ? model.game_mode.toUpperCase() : 'CLASSIC'}</span>
                 </div>
-                <div class="uuid">${model.uuid.substring(0,12)}...</div>
-                <div style="font-size:0.7rem; color:#888; margin-top:5px;">
-                    R: ${model.final_mean_reward ? model.final_mean_reward.toFixed(2) : 'N/A'} | ${model.algorithm || 'PPO'}
+                <div class="uuid">${model.uuid}</div>
+                <div style="font-size:0.7rem; color:#888; margin-top:5px; display:flex; justify-content:space-between;">
+                   <span>R: ${model.final_mean_reward ? model.final_mean_reward.toFixed(2) : 'N/A'}</span>
+                   <span>${model.algorithm || 'PPO'}</span>
                 </div>
             `;
             el.onclick = () => selectForRetrain(model, el);
@@ -58,7 +60,6 @@ async function loadModels() {
 }
 
 function selectForRetrain(model, el) {
-    // Gestion de la sélection visuelle
     document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
     selectedModel = model;
@@ -66,33 +67,34 @@ function selectForRetrain(model, el) {
     const card = document.getElementById('model-details-card');
     card.classList.add('visible');
 
-    // Remplissage des données JSON verrouillées
+    // Remplissage INSPECTOR
     document.getElementById('detail-uuid').innerText = "AGENT: " + model.uuid;
     document.getElementById('detail-date').value = model.date || "Unknown";
     document.getElementById('detail-algo').value = model.algorithm || "PPO";
     document.getElementById('detail-grid').value = `${model.grid_size} x ${model.grid_size}`;
-    document.getElementById('detail-mode').value = model.game_mode.toUpperCase();
-    document.getElementById('detail-envs').value = model.n_envs;
+    document.getElementById('detail-mode').value = (model.game_mode || "CLASSIC").toUpperCase();
 
+    // N_ENVS (Récupéré correctement maintenant)
+    document.getElementById('detail-envs').value = model.n_envs !== undefined ? model.n_envs : "undefined";
+
+    // FINAL REWARD
     const rewardVal = model.final_mean_reward !== undefined ? model.final_mean_reward.toFixed(4) : "0.0000";
     document.getElementById('detail-reward').value = rewardVal;
 
     // Reset du champ editable (Timesteps)
-    // On met 50k par défaut, mais on peut imaginer reprendre une valeur précédente si besoin
     document.getElementById('train-timesteps').value = 50000;
 }
 
-// --- BARRES DE PROGRESSION (Jobs) ---
+// --- JOBS (inchangé, sauf gestion erreurs) ---
 async function syncActiveJobs() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/train/active`);
         const ids = await res.json();
+        const msg = document.getElementById('no-jobs-msg');
 
         if (ids.length > 0) {
-            const msg = document.getElementById('no-jobs-msg');
             if(msg) msg.style.display = 'none';
         } else {
-            const msg = document.getElementById('no-jobs-msg');
             if(msg) msg.style.display = 'block';
         }
 
@@ -141,11 +143,10 @@ function listenToJob(runId) {
                     <p>Agent Saved.</p>
                 </div>`;
             socket.close();
-            // Rafraichir la liste après 3 secondes pour voir le nouveau modèle
             setTimeout(() => {
                 const card = document.getElementById(`job-card-${runId}`);
                 if(card) card.remove();
-                loadModels();
+                loadModels(); // Recharger la liste
             }, 3000);
         } else if (data.progress !== undefined) {
             const p = Math.round(data.progress * 100);
@@ -157,56 +158,37 @@ function listenToJob(runId) {
             }
         }
     };
-
-    socket.onerror = () => {
-        console.error("WS Error for", runId);
-        socket.close();
-    };
     socket.onclose = () => delete activeWebSockets[runId];
 }
 
 async function launchTraining() {
-    if (!selectedModel) return showAlert("System Error", "Please select a model from the repository first.", "error");
+    if (!selectedModel) return showAlert("Error", "Select model first", "error");
 
     const tsInput = document.getElementById('train-timesteps');
     let timesteps = parseInt(tsInput.value);
 
-    // Validation Min/Max
-    if (timesteps < 20000) {
-        showAlert("Invalid Config", "Timesteps must be at least 20,000.", "error");
-        tsInput.value = 20000;
-        return;
-    }
-    if (timesteps > 500000) {
-        showAlert("Invalid Config", "Timesteps cannot exceed 500,000.", "error");
-        tsInput.value = 500000;
-        return;
+    if (timesteps < 20000 || timesteps > 500000) {
+        return showAlert("Invalid Config", "Timesteps must be between 20k and 500k.", "error");
     }
 
     const payload = {
         timesteps: timesteps,
-        n_envs: selectedModel.n_envs, // Repris du modèle JSON
-        grid_size: selectedModel.grid_size, // Repris du modèle JSON
-        game_mode: selectedModel.game_mode, // Repris du modèle JSON
+        n_envs: selectedModel.n_envs || 4,
+        grid_size: selectedModel.grid_size,
+        game_mode: selectedModel.game_mode,
         base_uuid: selectedModel.uuid
     };
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/train/start`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
-
-        if (!res.ok) throw new Error("API Limit or Error");
-
         const data = await res.json();
         if(data.run_id) {
             createJobCard(data.run_id);
             listenToJob(data.run_id);
-            showAlert("Sequence Initiated", `Retraining started for ${timesteps} steps.`, "success");
+            showAlert("Started", "Training initiated.", "success");
         }
-    } catch(e) {
-        showAlert("Connection Failed", "Could not start training sequence.", "error");
-    }
+    } catch(e) { showAlert("Error", "Failed to start", "error"); }
 }

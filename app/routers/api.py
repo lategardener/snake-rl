@@ -10,37 +10,42 @@ import numpy as np
 from huggingface_hub import HfApi, hf_hub_download
 from stable_baselines3 import PPO
 from dotenv import load_dotenv
-from prometheus_client import Counter, REGISTRY 
+from prometheus_client import Counter, REGISTRY
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.src.agent.training.train import train_snake, training_manager
 
 load_dotenv()
+
 # Spécifiez explicitement le registre lors de la création
 MODELE_LOADED_COUNTER = Counter(
-    'snake_model_loaded_total', 
-    'Modèles chargés', 
+    'snake_model_loaded_total',
+    'Modèles chargés',
     ['grid_size'],
-    registry=REGISTRY # Force l'enregistrement ici
+    registry=REGISTRY
 )
 
 GAMES_STARTED_COUNTER = Counter(
-    'snake_games_started_total', 
-    'Parties lancées', 
+    'snake_games_started_total',
+    'Parties lancées',
     ['grid_size'],
-    registry=REGISTRY # Force l'enregistrement ici
+    registry=REGISTRY
 )
+
+
 # --- MODELS ---
 class GameState(BaseModel): grid: List[List[int]]
 
 
+# MISE À JOUR : Ajout des champs manquants pour correspondre au JSON
 class ModelInfo(BaseModel):
     uuid: str
     grid_size: int
     algorithm: str
     date: str
-    reward: Optional[float]
-    game_mode: str | None = None
+    final_mean_reward: Optional[float] = 0.0  # Renommé pour correspondre au JSON
+    game_mode: str | None = "classic"
+    n_envs: int | None = 4  # Ajout du champ n_envs
 
 
 class LoadModelRequest(BaseModel): uuid: str; grid_size: int
@@ -90,23 +95,36 @@ def list_models():
         models = []
         for f in files:
             if f.endswith("metadata.json"):
-                path = hf_hub_download(repo_id="snakeRL/snake-rl-models", filename=f, force_download=True, token=os.getenv("HF_HUB_TOKEN"))
-                with open(path, "r") as j: data = json.load(j)
+                # Téléchargement et lecture
+                path = hf_hub_download(repo_id="snakeRL/snake-rl-models", filename=f, force_download=True,
+                                       token=os.getenv("HF_HUB_TOKEN"))
+                with open(path, "r") as j:
+                    data = json.load(j)
+
+                # Mapping robuste
                 models.append(ModelInfo(
-                    uuid=data.get("uuid"), grid_size=data.get("grid_size"),
-                    algorithm=data.get("algorithm", "PPO"), date=data.get("date", "N/A"),
-                    reward=data.get("final_mean_reward"), game_mode=data.get("game_mode", "classic")
+                    uuid=data.get("uuid"),
+                    grid_size=data.get("grid_size"),
+                    algorithm=data.get("algorithm", "PPO"),
+                    date=data.get("date", "N/A"),
+                    final_mean_reward=data.get("final_mean_reward", 0.0),
+                    game_mode=data.get("game_mode", "classic"),
+                    n_envs=data.get("n_envs", 4)  # Récupération de n_envs
                 ))
-        return sorted(models, key=lambda x: x.reward if x.reward else -999, reverse=True)
+
+        # TRI : D'abord par taille de grille (croissant), puis par reward (décroissant)
+        sorted_models = sorted(models, key=lambda x: (x.grid_size, -(x.final_mean_reward or -999)))
+        return sorted_models
+
     except Exception as e:
+        print(f"Error listing models: {e}")
         raise HTTPException(500, str(e))
 
 
 @router.post("/load")
 def load_model(req: LoadModelRequest):
     if manager.load_model(req.uuid, req.grid_size):
-        # Incrémentation avec label forcé en string
-        MODELE_LOADED_COUNTER.labels(grid_size=str(req.grid_size)).inc() 
+        MODELE_LOADED_COUNTER.labels(grid_size=str(req.grid_size)).inc()
         return {"status": "loaded", "uuid": req.uuid}
     raise HTTPException(404, "Model not found")
 
@@ -152,7 +170,6 @@ async def ws_endpoint(websocket: WebSocket, run_id: str):
         while True:
             data = training_manager.get_status(run_id)
             if data:
-                # ENVOI LÉGER : Juste stats et progrès
                 await websocket.send_json({
                     "progress": data.get("progress", 0),
                     "stats": data.get("stats", {})
