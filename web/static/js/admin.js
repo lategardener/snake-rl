@@ -2,7 +2,7 @@ const API_BASE_URL = window.location.origin;
 let activeWebSockets = {};
 let selectedModel = null;
 
-// --- VARIABLES CALCULATEUR ---
+// --- VARIABLES CALCULATEUR TIMESTEPS ---
 let currentTimesteps = 50000;
 let operationMode = 1; // 1 = ADD, -1 = SUBTRACT
 
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModels();
     syncActiveJobs();
     setInterval(syncActiveJobs, 5000);
-    updateTimestepDisplay();
+    updateTimestepDisplay(); // Init affichage à 50k
 });
 
 // --- ALERTES ---
@@ -33,54 +33,45 @@ async function loadModels() {
         container.innerHTML = '';
 
         if(models.length === 0) {
-            container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No models found in repository.</div>';
+            container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No models found.</div>';
             return;
         }
 
-        // 1. Groupement
+        // Grouper les modèles par grid_size
         const grouped = {};
         models.forEach(m => {
             if (!grouped[m.grid_size]) grouped[m.grid_size] = [];
             grouped[m.grid_size].push(m);
         });
 
-        // 2. Tri des tailles (3, 5, 10...)
+        // Trier les clés de grid (3, 5, 10...)
         const gridSizes = Object.keys(grouped).map(Number).sort((a,b) => a - b);
 
-        // 3. Affichage
         gridSizes.forEach(size => {
-            // Création du séparateur (CSS class dans style.css)
+            // Créer le séparateur
             const separator = document.createElement('div');
             separator.className = 'grid-separator';
-            separator.innerHTML = `GRID SYSTEM [ ${size}x${size} ]`;
+            separator.innerHTML = `<span class="diamond">◆</span> GRID SYSTEM [ ${size}x${size} ] <span class="diamond">◆</span>`;
             container.appendChild(separator);
 
-            // Trier les modèles par Reward décroissant
-            grouped[size].sort((a, b) => (b.final_mean_reward || 0) - (a.final_mean_reward || 0));
-
+            // Créer les cartes pour ce groupe
             grouped[size].forEach(model => {
                 const el = document.createElement('div');
                 el.className = 'model-card';
 
-                const isWalls = model.game_mode === 'walls';
-                const badgeClass = isWalls ? 'badge-walls' : 'badge-classic';
-                const badgeText = isWalls ? 'WALLS' : 'CLASSIC';
-
-                // Formatage Date
-                let shortDate = "N/A";
-                if(model.date) shortDate = model.date.split(' ')[0];
+                let modeBadge = model.game_mode === 'walls'
+                    ? '<span class="grid-badge badge-walls">WALLS</span>'
+                    : '<span class="grid-badge badge-classic">CLASSIC</span>';
 
                 el.innerHTML = `
                     <div class="card-top">
-                        <span class="mode-badge ${badgeClass}">${badgeText}</span>
-                        <span class="grid-badge">${model.algorithm || 'PPO'}</span>
+                        <span class="grid-badge" style="background:#333;">${model.algorithm || 'PPO'}</span>
+                        ${modeBadge}
                     </div>
                     <div class="uuid">${model.uuid}</div>
-                    <div class="card-stats">
-                        <span>📅 ${shortDate}</span>
-                        <span style="color:${model.final_mean_reward > 0 ? 'var(--neon-green)' : '#888'}">
-                            R: ${model.final_mean_reward ? model.final_mean_reward.toFixed(2) : '0.00'}
-                        </span>
+                    <div style="font-size:0.75rem; color:#888; margin-top:8px; display:flex; justify-content:space-between;">
+                       <span>Created: ${model.date ? model.date.split(' ')[0] : 'N/A'}</span>
+                       <span style="color:${model.final_mean_reward > 0 ? '#0f0' : '#888'}">R: ${model.final_mean_reward ? model.final_mean_reward.toFixed(2) : 'N/A'}</span>
                     </div>
                 `;
                 el.onclick = () => selectForRetrain(model, el);
@@ -90,7 +81,6 @@ async function loadModels() {
 
     } catch(e) {
         console.error("Load Error:", e);
-        document.getElementById('admin-model-list').innerHTML = '<div style="color:red; text-align:center; padding:20px;">Connection Error</div>';
     }
 }
 
@@ -102,7 +92,7 @@ function selectForRetrain(model, el) {
     const card = document.getElementById('model-details-card');
     card.classList.add('visible');
 
-    // Remplissage Formulaire
+    // Remplissage INSPECTOR
     document.getElementById('detail-uuid').innerText = "AGENT: " + model.uuid;
     document.getElementById('detail-date').value = model.date || "Unknown";
     document.getElementById('detail-algo').value = model.algorithm || "PPO";
@@ -113,12 +103,12 @@ function selectForRetrain(model, el) {
     const rewardVal = model.final_mean_reward !== undefined ? model.final_mean_reward.toFixed(4) : "0.0000";
     document.getElementById('detail-reward').value = rewardVal;
 
-    // Reset du Calculateur à 50k
+    // Reset du Calculateur à 50k par défaut
     currentTimesteps = 50000;
     updateTimestepDisplay();
 }
 
-// --- 2. CALCULATOR LOGIC ---
+// --- 2. CALCULATOR LOGIC (Contrôle Timesteps) ---
 function setOpMode(mode) {
     operationMode = mode;
     const btnAdd = document.getElementById('btn-mode-add');
@@ -134,6 +124,7 @@ function setOpMode(mode) {
 }
 
 function modifyTimesteps(amount) {
+    // Calculer la nouvelle valeur
     let newValue = currentTimesteps + (amount * operationMode);
 
     // Contraintes strictes : Min 50k, Max 500k
@@ -145,10 +136,11 @@ function modifyTimesteps(amount) {
 }
 
 function updateTimestepDisplay() {
+    // Formattage avec virgule pour la lisibilité (ex: 50,000)
     document.getElementById('ts-display').innerText = currentTimesteps.toLocaleString('en-US');
 }
 
-// --- 3. JOB MONITORING ---
+// --- 3. GESTION DES JOBS (WebSocket) ---
 async function syncActiveJobs() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/train/active`);
@@ -201,7 +193,7 @@ function listenToJob(runId) {
 
         if (data.status === 'finished') {
             document.getElementById(`job-card-${runId}`).innerHTML = `
-                <div style="border: 1px solid var(--neon-green); color: var(--neon-green); padding: 10px; text-align: center; border-radius: 5px; background: rgba(0,255,0,0.05);">
+                <div class="training-complete-banner">
                     <h3>✔ TRAINING COMPLETE</h3>
                     <p>Agent Saved.</p>
                 </div>`;
@@ -228,7 +220,7 @@ async function launchTraining() {
     if (!selectedModel) return showAlert("Error", "Select model first", "error");
 
     const payload = {
-        timesteps: currentTimesteps,
+        timesteps: currentTimesteps, // Utilise la variable globale du calculateur
         n_envs: selectedModel.n_envs || 4,
         grid_size: selectedModel.grid_size,
         game_mode: selectedModel.game_mode,
