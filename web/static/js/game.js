@@ -217,6 +217,9 @@ async function gameStep() {
             updateBrainBar('prob-right', data.probabilities[3]);
         }
 
+        const actionsLabels = ["UP", "DOWN", "LEFT", "RIGHT"];
+        actionEl.innerText = actionsLabels[data.action] || "UNKNOWN";
+
         moveSnake(data.action);
         draw();
 
