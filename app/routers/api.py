@@ -13,39 +13,26 @@ from dotenv import load_dotenv
 from prometheus_client import Counter, REGISTRY
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+# Import du manager mis à jour
 from app.src.agent.training.train import train_snake, training_manager
 
 load_dotenv()
 
-# Spécifiez explicitement le registre lors de la création
-MODELE_LOADED_COUNTER = Counter(
-    'snake_model_loaded_total',
-    'Modèles chargés',
-    ['grid_size'],
-    registry=REGISTRY
-)
-
-GAMES_STARTED_COUNTER = Counter(
-    'snake_games_started_total',
-    'Parties lancées',
-    ['grid_size'],
-    registry=REGISTRY
-)
+MODELE_LOADED_COUNTER = Counter('snake_model_loaded_total', 'Modèles chargés', ['grid_size'], registry=REGISTRY)
+GAMES_STARTED_COUNTER = Counter('snake_games_started_total', 'Parties lancées', ['grid_size'], registry=REGISTRY)
 
 
-# --- MODELS ---
 class GameState(BaseModel): grid: List[List[int]]
 
 
-# MISE À JOUR : Ajout des champs manquants pour correspondre au JSON
 class ModelInfo(BaseModel):
     uuid: str
     grid_size: int
     algorithm: str
     date: str
-    final_mean_reward: Optional[float] = 0.0  # Renommé pour correspondre au JSON
+    final_mean_reward: Optional[float] = 0.0
     game_mode: str | None = "classic"
-    n_envs: int | None = 4  # Ajout du champ n_envs
+    n_envs: int | None = 4
 
 
 class LoadModelRequest(BaseModel): uuid: str; grid_size: int
@@ -95,29 +82,16 @@ def list_models():
         models = []
         for f in files:
             if f.endswith("metadata.json"):
-                # Téléchargement et lecture
                 path = hf_hub_download(repo_id="snakeRL/snake-rl-models", filename=f, force_download=True,
                                        token=os.getenv("HF_HUB_TOKEN"))
-                with open(path, "r") as j:
-                    data = json.load(j)
-
-                # Mapping robuste
+                with open(path, "r") as j: data = json.load(j)
                 models.append(ModelInfo(
-                    uuid=data.get("uuid"),
-                    grid_size=data.get("grid_size"),
-                    algorithm=data.get("algorithm", "PPO"),
-                    date=data.get("date", "N/A"),
-                    final_mean_reward=data.get("final_mean_reward", 0.0),
-                    game_mode=data.get("game_mode", "classic"),
-                    n_envs=data.get("n_envs", 4)  # Récupération de n_envs
+                    uuid=data.get("uuid"), grid_size=data.get("grid_size"), algorithm=data.get("algorithm", "PPO"),
+                    date=data.get("date", "N/A"), final_mean_reward=data.get("final_mean_reward", 0.0),
+                    game_mode=data.get("game_mode", "classic"), n_envs=data.get("n_envs", 4)
                 ))
-
-        # TRI : D'abord par taille de grille (croissant), puis par reward (décroissant)
-        sorted_models = sorted(models, key=lambda x: (x.grid_size, -(x.final_mean_reward or -999)))
-        return sorted_models
-
+        return sorted(models, key=lambda x: (x.grid_size, -(x.final_mean_reward or -999)))
     except Exception as e:
-        print(f"Error listing models: {e}")
         raise HTTPException(500, str(e))
 
 
@@ -140,7 +114,6 @@ def predict(state: GameState):
     if not manager.current_agent: return {"action": 0, "probabilities": [0] * 4}
     obs = np.array(state.grid, dtype=np.float32)
     action, _ = manager.current_agent.predict(obs, deterministic=True)
-
     probs = [0.0] * 4
     try:
         with torch.no_grad():
@@ -159,24 +132,42 @@ def start_train(req: TrainRequest, bg: BackgroundTasks):
     return {"run_id": run_id, "status": "started"}
 
 
+# --- NOUVEAU : Endpoint STOP ---
+@router.delete("/train/stop/{run_id}")
+def stop_train(run_id: str):
+    # Appel de la méthode qu'on a ajoutée dans train.py
+    training_manager.cancel_job(run_id)
+    return {"status": "stop_requested"}
+
+
 @router.get("/train/active")
 def list_active(): return list(training_manager.active_trainings.keys())
 
 
+# --- MODIFIÉ : WebSocket avec données précises ---
 @router.websocket("/ws/training/{run_id}")
 async def ws_endpoint(websocket: WebSocket, run_id: str):
     await websocket.accept()
     try:
         while True:
             data = training_manager.get_status(run_id)
+
             if data:
+                # Si annulé, on prévient le front
+                if data.get("status") == "cancelled":
+                    await websocket.send_json({"status": "cancelled"})
+                    break
+
+                # Envoi des données complètes pour le graph et la barre
                 await websocket.send_json({
                     "progress": data.get("progress", 0),
+                    "current_step": data.get("timesteps", 0),
+                    "total_steps": data.get("total_timesteps", 1),
                     "stats": data.get("stats", {})
                 })
             else:
                 await websocket.send_json({"status": "finished"})
                 break
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(0.5)  # Mise à jour plus rapide (0.5s)
     except WebSocketDisconnect:
         pass
