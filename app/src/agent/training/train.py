@@ -86,7 +86,8 @@ def train_snake(
         game_mode: str = "classic",
         algorithm: str = "PPO",
         hf_repo_id: str = "snakeRL/snake-rl-models",
-        base_uuid: str = None
+        base_uuid: str = None,
+        show_logs: bool = False
 ):
     if not hf_token:
         print("⚠️ Token HF manquant")
@@ -104,10 +105,11 @@ def train_snake(
 
     agent = None
     is_finetuning = False
+    sb3_verbose = 1 if show_logs else 0
 
     try:
         if base_uuid:
-            agent, loaded_grid_size = load_snake_model_data(base_uuid, hf_repo_id)
+            agent, loaded_grid_size = load_snake_model_data(base_uuid, hf_repo_id, show_logs)
             if agent is None: raise ValueError(f"Modèle parent {base_uuid} introuvable")
             grid_size = loaded_grid_size
             is_finetuning = True
@@ -142,7 +144,7 @@ def train_snake(
             if is_finetuning:
                 agent.set_env(env)
             else:
-                agent = PPO("MlpPolicy", env, verbose=0)
+                agent = PPO("MlpPolicy", env, verbose=sb3_verbose)
 
             callbacks = [MLflowLoggingCallback(), StreamCallback(run_id, timesteps)]
 
@@ -184,5 +186,5 @@ def train_snake(
         time.sleep(3)
 
     finally:
-        print(f"🏁 Fin du processus pour {run_id}")
+        print(f"Fin du processus pour {run_id}")
         training_manager.stop_training(run_id)

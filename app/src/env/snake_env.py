@@ -154,32 +154,40 @@ class SnakeEnv(gym.Env):
             head_y += 1  # Droite
 
         new_head = (head_x, head_y)
+        is_eating = (new_head == self.food)
 
         # --- PHASE 3 : COLLISIONS & RÉCOMPENSES ---
         terminated = False
         reward = 0
 
         # Vérification des collisions (Murs Bordure OU Corps OU Murs Dynamiques)
+        tail = self.snake[-1]
+
+        # Collision bordures ou murs
         if (head_x < 0 or head_x >= self.grid_size or
                 head_y < 0 or head_y >= self.grid_size or
-                new_head in self.snake or
-                new_head in self.walls):  # <--- Le mur dynamique tue !
+                new_head in self.walls):
 
             terminated = True
             reward = -1
+
+        # Collision avec le corps (sauf la queue si elle bouge)
+        elif new_head in self.snake and not (new_head == tail and not is_eating):
+            terminated = True
+            reward = -1
+
         else:
-            # Avancer
+            # Avancer toujours ici
             self.snake.insert(0, new_head)
 
-            # Manger
-            if new_head == self.food:
+            if is_eating:
                 reward = 1
                 placed = self._place_food()
                 if not placed:
-                    terminated = True  # Victoire (grille pleine)
+                    terminated = True
             else:
                 self.snake.pop()
-                reward = -0.01  # Pénalité de temps
+                reward = -0.01
 
         # Troncature (Max steps atteint)
         truncated = self.step_count >= self.max_steps

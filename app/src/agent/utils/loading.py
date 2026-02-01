@@ -12,7 +12,7 @@ if not hf_token:
 
 
 
-def load_snake_model_data(uuid: str, hf_repo_id: str):
+def load_snake_model_data(uuid: str, hf_repo_id: str, show_logs: bool = False):
     token = os.getenv("HF_HUB_TOKEN")
     if not token:
         print("❌ Erreur : HF_HUB_TOKEN manquant.")
@@ -20,6 +20,7 @@ def load_snake_model_data(uuid: str, hf_repo_id: str):
 
     print(f"Scan du dépôt pour trouver l'UUID : {uuid} ...")
     api = HfApi(token=token)
+    sb3_verbose = 1 if show_logs else 0
 
     try:
         all_files = api.list_repo_files(repo_id=hf_repo_id, repo_type="model", token=token)
@@ -59,7 +60,7 @@ def load_snake_model_data(uuid: str, hf_repo_id: str):
             token=token
         )
 
-        agent = PPO.load(local_model_path)
+        agent = PPO.load(local_model_path, verbose=sb3_verbose)
         print(f"✅ Succès ! Agent chargé (Grille {grid_size}x{grid_size})")
 
         return agent, grid_size
