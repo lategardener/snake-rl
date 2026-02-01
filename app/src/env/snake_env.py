@@ -3,7 +3,6 @@ from gymnasium import spaces
 import numpy as np
 import random
 import pygame
-import sys
 
 # Codes ANSI pour le rendu Console (utile pour le debug)
 RESET = "\033[0m"
@@ -19,19 +18,22 @@ class SnakeEnv(gym.Env):
     Environnement Snake compatible Gymnasium avec modes de jeu dynamiques.
 
     Modes de jeu (game_mode) :
-    - "classic" : Mode standard (juste des pommes).
-    - "walls" : Mode avancé (pommes + murs dynamiques).
+    – "classic" : Mode standard (juste des pommes).
+    – "walls" : Mode avancé (pommes + murs dynamiques).
 
     Dynamique des murs :
-    - Apparaissent via interaction utilisateur ou aléatoirement.
-    - Restent affichés pendant WALL_DURATION steps.
-    - Disparaissent ensuite durant WALL_COOLDOWN_TIME steps.
+    – Apparaissent via interaction utilisateur ou aléatoirement.
+    – Restent affichés pendant WALL_DURATION steps.
+    – Disparaissent ensuite durant WALL_COOLDOWN_TIME steps.
     """
     metadata = {"render_modes": ["human", "pygame", "rgb_array"], "render_fps": 10}
 
     def __init__(self, grid_size=10, render_mode=None, max_steps=150, game_mode="classic"):
         super().__init__()
 
+        self.step_count = None
+        self.food = None
+        self.snake = None
         self.grid_size = grid_size
         self.render_mode = render_mode
         self.max_steps = max_steps
@@ -49,9 +51,9 @@ class SnakeEnv(gym.Env):
         self.wall_cooldown = 0  # Compteur d'attente avant prochain mur
 
         # Réglages de gameplay
-        self.WALL_DURATION = 3  # Le mur reste 3 steps (comme demandé)
+        self.WALL_DURATION = 3  # Le mur reste 3 steps
         self.WALL_COOLDOWN_TIME = 6  # Temps de recharge entre deux murs
-        self.WALL_RANDOM_PROB = 0.05  # 5% de chance qu'un mur apparaisse seul (si user inactif)
+        self.WALL_RANDOM_PROB = 0.05  # 5% de chance qu'un mur apparaisse seul (mode automatique/entraînement)
 
         # --- INTERACTION API ---
         self.pending_food_position = None
@@ -61,7 +63,7 @@ class SnakeEnv(gym.Env):
         self.action_space = spaces.Discrete(4)
 
         # Observation : Grille 2D
-        # 0: Vide, 1: Serpent, 2: Nourriture, 3: Mur temporaire
+        # 0 : Vide, 1 : Serpent, 2 : Nourriture, 3 : Mur temporaire
         self.observation_space = spaces.Box(
             low=0, high=3, shape=(grid_size, grid_size), dtype=np.int8
         )
@@ -77,23 +79,23 @@ class SnakeEnv(gym.Env):
                 self.walls = []
                 self.wall_timer = 0
                 self.wall_cooldown = 0
-            print(f"🔄 Mode de jeu changé : {mode}")
+            print(f"Mode de jeu changé : {mode}")
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
 
-        # 1. Reset du Serpent (au centre)
+        # Reset du Serpent (au centre)
         start_pos = (self.grid_size // 2, self.grid_size // 2)
         self.snake = [start_pos]
 
-        # 2. Reset des mécanismes de jeu
+        #  Reset des mécanismes de jeu
         self.walls = []
         self.wall_timer = 0
         self.wall_cooldown = 0
         self.pending_food_position = None
         self.pending_wall_position = None
 
-        # 3. Placement première pomme
+        # Placement première pomme
         self.food = None
         self._place_food()
 
@@ -109,14 +111,14 @@ class SnakeEnv(gym.Env):
 
         # --- PHASE 1 : GESTION DES MURS DYNAMIQUES ---
 
-        # Cas A : Des murs sont présents -> On décrémente leur vie
+        # Cas A : Des murs sont présents → On décrémente leur vie
         if self.walls:
             self.wall_timer -= 1
             if self.wall_timer <= 0:
                 self.walls = []  # Ils disparaissent
                 self.wall_cooldown = self.WALL_COOLDOWN_TIME  # Début du temps de recharge
 
-        # Cas B : Pas de murs, mais on est en recharge -> On décrémente le cooldown
+        # Cas B : Pas de murs, mais on est en recharge → On décrémente le cooldown
         elif self.wall_cooldown > 0:
             self.wall_cooldown -= 1
 
@@ -158,7 +160,6 @@ class SnakeEnv(gym.Env):
 
         # --- PHASE 3 : COLLISIONS & RÉCOMPENSES ---
         terminated = False
-        reward = 0
 
         # Vérification des collisions (Murs Bordure OU Corps OU Murs Dynamiques)
         tail = self.snake[-1]
@@ -278,6 +279,7 @@ class SnakeEnv(gym.Env):
             self._render_frame()
         elif self.render_mode == "rgb_array":
             return self._render_frame(return_rgb=True)
+        return None
 
     def _render_console(self):
         print(WHITE + "┌" + "─" * (self.grid_size * 2) + "┐" + RESET)
@@ -339,6 +341,7 @@ class SnakeEnv(gym.Env):
             pygame.event.pump()
             pygame.display.flip()
             self.clock.tick(self.metadata["render_fps"])
+        return None
 
     def close(self):
         if self.window is not None:
