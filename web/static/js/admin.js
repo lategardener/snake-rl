@@ -26,41 +26,74 @@ async function loadModels() {
         const models = await res.json();
         const container = document.getElementById('admin-model-list');
         container.innerHTML = '';
+
+        if(models.length === 0) {
+            container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No models found in repository.</div>';
+            return;
+        }
+
         models.forEach(model => {
             const el = document.createElement('div');
             el.className = 'model-card';
-            const badge = model.game_mode === 'walls' ? '<span class="mode-badge badge-walls">WALLS</span>' : '<span class="mode-badge badge-classic">CLASSIC</span>';
-            el.innerHTML = `<div class="card-top"><span class="grid-badge">${model.grid_size}x${model.grid_size}</span>${badge}</div><div class="uuid">${model.uuid.substring(0,12)}...</div>`;
+            // Badge visuel pour le mode
+            const badgeClass = model.game_mode === 'walls' ? 'badge-walls' : 'badge-classic';
+            const badgeText = model.game_mode === 'walls' ? 'WALLS' : 'CLASSIC';
+
+            el.innerHTML = `
+                <div class="card-top">
+                    <span class="grid-badge">${model.grid_size}x${model.grid_size}</span>
+                    <span class="mode-badge ${badgeClass}">${badgeText}</span>
+                </div>
+                <div class="uuid">${model.uuid.substring(0,12)}...</div>
+                <div style="font-size:0.7rem; color:#888; margin-top:5px;">
+                    R: ${model.final_mean_reward ? model.final_mean_reward.toFixed(2) : 'N/A'} | ${model.algorithm || 'PPO'}
+                </div>
+            `;
             el.onclick = () => selectForRetrain(model, el);
             container.appendChild(el);
         });
-    } catch(e) {}
+    } catch(e) {
+        console.error("Load Error:", e);
+    }
 }
 
 function selectForRetrain(model, el) {
+    // Gestion de la sélection visuelle
     document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
     selectedModel = model;
 
     const card = document.getElementById('model-details-card');
     card.classList.add('visible');
-    document.getElementById('detail-uuid').innerText = "AGENT: " + model.uuid.substring(0,8);
-    document.getElementById('train-grid').value = `${model.grid_size} x ${model.grid_size}`;
-    document.getElementById('train-mode-text').value = model.game_mode.toUpperCase();
-    document.getElementById('train-mode').value = model.game_mode;
-    document.getElementById('train-envs').value = "4 Parallel Envs";
+
+    // Remplissage des données JSON verrouillées
+    document.getElementById('detail-uuid').innerText = "AGENT: " + model.uuid;
+    document.getElementById('detail-date').value = model.date || "Unknown";
+    document.getElementById('detail-algo').value = model.algorithm || "PPO";
+    document.getElementById('detail-grid').value = `${model.grid_size} x ${model.grid_size}`;
+    document.getElementById('detail-mode').value = model.game_mode.toUpperCase();
+    document.getElementById('detail-envs').value = model.n_envs;
+
+    const rewardVal = model.final_mean_reward !== undefined ? model.final_mean_reward.toFixed(4) : "0.0000";
+    document.getElementById('detail-reward').value = rewardVal;
+
+    // Reset du champ editable (Timesteps)
+    // On met 50k par défaut, mais on peut imaginer reprendre une valeur précédente si besoin
+    document.getElementById('train-timesteps').value = 50000;
 }
 
-// --- BARRES DE PROGRESSION ---
+// --- BARRES DE PROGRESSION (Jobs) ---
 async function syncActiveJobs() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/train/active`);
         const ids = await res.json();
 
-        // Nettoyage message "No jobs"
         if (ids.length > 0) {
             const msg = document.getElementById('no-jobs-msg');
             if(msg) msg.style.display = 'none';
+        } else {
+            const msg = document.getElementById('no-jobs-msg');
+            if(msg) msg.style.display = 'block';
         }
 
         ids.forEach(runId => {
@@ -105,46 +138,75 @@ function listenToJob(runId) {
             document.getElementById(`job-card-${runId}`).innerHTML = `
                 <div class="training-complete-banner">
                     <h3>✔ TRAINING COMPLETE</h3>
-                    <p>Agent ${runId.substring(0,8)} saved.</p>
+                    <p>Agent Saved.</p>
                 </div>`;
             socket.close();
+            // Rafraichir la liste après 3 secondes pour voir le nouveau modèle
             setTimeout(() => {
                 const card = document.getElementById(`job-card-${runId}`);
                 if(card) card.remove();
                 loadModels();
-            }, 5000);
+            }, 3000);
         } else if (data.progress !== undefined) {
             const p = Math.round(data.progress * 100);
             document.getElementById(`fill-${runId}`).style.width = p + "%";
             document.getElementById(`percent-${runId}`).innerText = p + "%";
-            document.getElementById(`status-${runId}`).innerText = "Computing...";
+            document.getElementById(`status-${runId}`).innerText = "Optimizing...";
             if(data.stats && data.stats.mean_reward) {
                 document.getElementById(`reward-${runId}`).innerText = "Reward: " + data.stats.mean_reward.toFixed(2);
             }
         }
     };
+
+    socket.onerror = () => {
+        console.error("WS Error for", runId);
+        socket.close();
+    };
     socket.onclose = () => delete activeWebSockets[runId];
 }
 
 async function launchTraining() {
-    if (!selectedModel) return showAlert("Error", "Select model first", "error");
+    if (!selectedModel) return showAlert("System Error", "Please select a model from the repository first.", "error");
+
+    const tsInput = document.getElementById('train-timesteps');
+    let timesteps = parseInt(tsInput.value);
+
+    // Validation Min/Max
+    if (timesteps < 20000) {
+        showAlert("Invalid Config", "Timesteps must be at least 20,000.", "error");
+        tsInput.value = 20000;
+        return;
+    }
+    if (timesteps > 500000) {
+        showAlert("Invalid Config", "Timesteps cannot exceed 500,000.", "error");
+        tsInput.value = 500000;
+        return;
+    }
 
     const payload = {
-        timesteps: parseInt(document.getElementById('train-timesteps').value),
-        n_envs: 4, grid_size: selectedModel.grid_size,
-        game_mode: selectedModel.game_mode, base_uuid: selectedModel.uuid
+        timesteps: timesteps,
+        n_envs: selectedModel.n_envs, // Repris du modèle JSON
+        grid_size: selectedModel.grid_size, // Repris du modèle JSON
+        game_mode: selectedModel.game_mode, // Repris du modèle JSON
+        base_uuid: selectedModel.uuid
     };
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/train/start`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
+
+        if (!res.ok) throw new Error("API Limit or Error");
+
         const data = await res.json();
         if(data.run_id) {
             createJobCard(data.run_id);
             listenToJob(data.run_id);
-            showAlert("Started", "Training initiated.", "success");
+            showAlert("Sequence Initiated", `Retraining started for ${timesteps} steps.`, "success");
         }
-    } catch(e) { showAlert("Error", "Failed to start", "error"); }
+    } catch(e) {
+        showAlert("Connection Failed", "Could not start training sequence.", "error");
+    }
 }

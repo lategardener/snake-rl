@@ -6,11 +6,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./static/css/style.css">
     <style>
-        .admin-layout { display: grid; grid-template-columns: 300px 1fr 350px; gap: 20px; width: 95vw; height: 90vh; margin: 20px auto; }
+        .admin-layout { display: grid; grid-template-columns: 320px 1fr 380px; gap: 20px; width: 95vw; height: 90vh; margin: 20px auto; }
         .model-list-panel { grid-column: 1; display: flex; flex-direction: column; overflow: hidden; }
         .details-panel { grid-column: 3; display: flex; flex-direction: column; gap: 20px; }
 
-        /* --- PROGRESS MONITOR STYLE --- */
+        /* --- MONITOR STYLE --- */
         .monitor-panel {
             grid-column: 2; display: flex; flex-direction: column;
             height: 100%; overflow: hidden; position: relative;
@@ -34,7 +34,6 @@
         .progress-track { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin: 15px 0; }
         .progress-fill { height: 100%; width: 0%; background: var(--neon-blue); box-shadow: 0 0 15px var(--neon-blue); transition: width 0.5s ease; }
 
-        /* BANNIÈRE DE FIN */
         .training-complete-banner {
             background: rgba(10, 255, 10, 0.1); border: 1px solid var(--neon-green);
             color: var(--neon-green); padding: 15px; text-align: center;
@@ -42,11 +41,53 @@
             animation: fadeIn 0.5s ease;
         }
 
-        /* Autres styles */
-        .info-card { background: rgba(0,0,0,0.6); border: 1px solid var(--neon-blue); padding: 20px; border-radius: 10px; opacity: 0; transition: opacity 0.3s; }
-        .info-card.visible { opacity: 1; }
-        .locked-field { background: rgba(255,255,255,0.05)!important; color:#888!important; pointer-events:none; }
-        input { background: rgba(255,255,255,0.1); border: 1px solid #555; color: white; padding: 10px; width: 100%; border-radius: 5px; }
+        /* --- NOUVEAUX STYLES --- */
+        /* Bannière de liste */
+        .list-banner {
+            background: linear-gradient(90deg, rgba(0,255,255,0.1) 0%, transparent 100%);
+            border-left: 4px solid var(--neon-blue);
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            font-family: var(--font-display);
+            color: var(--neon-blue);
+            letter-spacing: 2px;
+            font-size: 0.9rem;
+        }
+
+        /* Grille de détails pour l'inspecteur */
+        .info-card { background: rgba(0,0,0,0.6); border: 1px solid var(--neon-blue); padding: 20px; border-radius: 10px; opacity: 0; transition: opacity 0.3s; display: none; }
+        .info-card.visible { opacity: 1; display: block; }
+
+        .specs-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .field-group { margin-bottom: 5px; }
+        .field-group label { display: block; font-size: 0.7rem; color: #888; margin-bottom: 4px; text-transform: uppercase; }
+
+        .locked-field {
+            background: rgba(0, 0, 0, 0.4)!important;
+            border: 1px solid #333!important;
+            color: #aaa!important;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85rem;
+            pointer-events: none;
+        }
+
+        .highlight-field {
+            border-color: var(--neon-blue)!important;
+            color: var(--neon-blue)!important;
+            font-weight: bold;
+        }
+
+        input { background: rgba(255,255,255,0.1); border: 1px solid #555; color: white; padding: 10px; width: 100%; border-radius: 5px; box-sizing: border-box; }
+        input:focus { border-color: var(--neon-blue); outline: none; }
+
+        /* Validation visuelle */
+        input:invalid { border-color: #ff4444; }
     </style>
 </head>
 <body>
@@ -56,8 +97,13 @@
         <aside class="glass-panel model-list-panel">
             <div class="header"><h2>ADMIN <span class="highlight">PANEL</span></h2></div>
             <div class="nav-buttons">
-                <button onclick="window.location.href='/'" class="neon-btn" style="width:100%">🏠 BACK TO HOME</button>
+                <button onclick="window.location.href='/'" class="neon-btn" style="width:100%; margin-bottom:15px;">🏠 BACK TO HOME</button>
             </div>
+
+            <div class="list-banner">
+                // SYSTEM_REPOSITORY //
+            </div>
+
             <div id="admin-model-list" class="model-list"><div class="loading">Loading...</div></div>
         </aside>
 
@@ -73,14 +119,48 @@
 
         <aside class="glass-panel details-panel">
             <div class="header"><h2>INSPECTOR</h2></div>
+
             <div id="model-details-card" class="info-card">
-                <h3 id="detail-uuid" style="color:var(--neon-blue);">Select Model</h3>
-                <div class="train-form" style="display:flex; flex-direction:column; gap:15px; margin-top:15px;">
-                    <div><label>Timesteps</label><input type="number" id="train-timesteps" value="50000"></div>
-                    <div><label>Grid (🔒)</label><input id="train-grid" class="locked-field" readonly></div>
-                    <div><label>Mode (🔒)</label><input id="train-mode-text" class="locked-field" readonly><input type="hidden" id="train-mode"></div>
-                    <div><label>Envs (🔒)</label><input id="train-envs" class="locked-field" readonly></div>
-                    <button id="btn-launch-train" onclick="launchTraining()" class="neon-btn btn-warning">🚀 START RETRAINING</button>
+                <h3 id="detail-uuid" style="color:var(--neon-blue); font-size: 0.9rem; word-break: break-all; margin-bottom: 15px;">SELECT MODEL</h3>
+
+                <div class="train-form">
+                    <div class="specs-grid">
+                        <div class="field-group">
+                            <label>Creation Date</label>
+                            <input id="detail-date" class="locked-field" readonly>
+                        </div>
+                        <div class="field-group">
+                            <label>Algorithm</label>
+                            <input id="detail-algo" class="locked-field" readonly>
+                        </div>
+                        <div class="field-group">
+                            <label>Grid Size</label>
+                            <input id="detail-grid" class="locked-field" readonly>
+                        </div>
+                        <div class="field-group">
+                            <label>Game Mode</label>
+                            <input id="detail-mode" class="locked-field" readonly>
+                        </div>
+                        <div class="field-group">
+                            <label>N_Envs</label>
+                            <input id="detail-envs" class="locked-field" readonly>
+                        </div>
+                        <div class="field-group">
+                            <label style="color:var(--neon-blue);">Last Final Reward</label>
+                            <input id="detail-reward" class="locked-field highlight-field" readonly>
+                        </div>
+                    </div>
+
+                    <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
+
+                    <div class="field-group">
+                        <label>Retrain Timesteps (20k - 500k)</label>
+                        <input type="number" id="train-timesteps" value="50000" min="20000" max="500000" step="10000">
+                    </div>
+
+                    <button id="btn-launch-train" onclick="launchTraining()" class="neon-btn btn-warning" style="margin-top: 20px;">
+                        🚀 START RETRAINING
+                    </button>
                 </div>
             </div>
         </aside>
