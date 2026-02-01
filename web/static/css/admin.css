@@ -26,7 +26,7 @@ body {
     align-items: center;
 }
 
-/* --- BACKGROUND AMBIANCE (IDENTIQUE HOME) --- */
+/* --- BACKGROUND AMBIANCE (Strictement identique à style.css) --- */
 .background-blobs {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -40,7 +40,6 @@ body {
     border-radius: 50%;
 }
 
-/* Blob 1 : Violet (Haut Gauche) */
 .blob-1 {
     top: -10%; left: -10%;
     width: 50vw; height: 50vw;
@@ -48,7 +47,6 @@ body {
     animation: move1 20s infinite alternate;
 }
 
-/* Blob 2 : Bleu Foncé (Bas Droite) */
 .blob-2 {
     bottom: -10%; right: -10%;
     width: 60vw; height: 60vw;
@@ -56,24 +54,23 @@ body {
     animation: move2 25s infinite alternate;
 }
 
-/* Blob 3 : Cyan (Centre - Ajouté pour correspondre à l'index) */
 .blob-3 {
-    top: 30%; left: 30%;
-    width: 40vw; height: 40vw;
-    background: rgba(0, 243, 255, 0.15);
-    animation: move3 18s infinite alternate;
+    top: 40%; left: 40%;
+    width: 30vw; height: 30vw;
+    background: rgba(0, 243, 255, 0.2);
+    animation: move3 15s infinite alternate;
 }
 
 @keyframes move1 { from { transform: translate(0,0); } to { transform: translate(50px, 100px); } }
 @keyframes move2 { from { transform: translate(0,0); } to { transform: translate(-50px, -100px); } }
-@keyframes move3 { from { transform: scale(1); } to { transform: scale(1.2); } }
+@keyframes move3 { from { transform: translate(0,0) scale(1); } to { transform: translate(20px, -20px) scale(1.2); } }
 
 /* --- GLOBAL UI COMPONENTS --- */
 .glass-panel {
-    background: rgba(15, 20, 35, 0.7);
-    backdrop-filter: blur(12px);
+    background: rgba(15, 20, 35, 0.6); /* Transparence ajustée comme style.css */
+    backdrop-filter: blur(10px);
     border: 1px solid var(--glass-border);
-    border-radius: 10px;
+    border-radius: 15px;
     padding: 20px;
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
     display: flex;
@@ -90,7 +87,7 @@ body {
     transition: 0.3s;
     text-transform: uppercase;
     letter-spacing: 2px;
-    border-radius: 4px;
+    border-radius: 5px;
     font-size: 0.8rem;
 }
 .neon-btn:hover { background: var(--neon-blue); color: black; box-shadow: 0 0 15px var(--neon-blue); }
@@ -108,8 +105,8 @@ h2 { margin: 0 0 15px 0; font-family: var(--font-display); font-size: 1.2rem; le
     display: grid;
     grid-template-columns: 340px 1fr 380px;
     gap: 20px;
-    width: 96vw;
-    height: 92vh;
+    width: 95vw;
+    height: 90vh;
     margin: 20px auto;
     overflow: hidden;
 }
@@ -121,6 +118,7 @@ h2 { margin: 0 0 15px 0; font-family: var(--font-display); font-size: 1.2rem; le
     grid-column: 1;
     overflow: hidden;
     border-right: 1px solid rgba(255,255,255,0.05);
+    background: rgba(5, 10, 20, 0.6); /* Fond légèrement teinté pour lisibilité */
 }
 .model-list-panel .header, .model-list-panel .nav-buttons { flex-shrink: 0; }
 .nav-buttons { margin: 15px 0; }
@@ -133,9 +131,6 @@ h2 { margin: 0 0 15px 0; font-family: var(--font-display); font-size: 1.2rem; le
     scrollbar-width: thin;
     scrollbar-color: var(--neon-blue) #111;
 }
-.model-list::-webkit-scrollbar { width: 6px; }
-.model-list::-webkit-scrollbar-track { background: #111; }
-.model-list::-webkit-scrollbar-thumb { background: var(--neon-blue); border-radius: 3px; }
 
 /* Grid Separator */
 .grid-separator {
@@ -154,7 +149,7 @@ h2 { margin: 0 0 15px 0; font-family: var(--font-display); font-size: 1.2rem; le
 /* Model Card */
 .model-card {
     flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-left: 3px solid #444;
     border-radius: 4px; padding: 12px; margin-bottom: 8px;
@@ -177,7 +172,7 @@ h2 { margin: 0 0 15px 0; font-family: var(--font-display); font-size: 1.2rem; le
 /* =========================================
    4. COLONNE CENTRALE : MONITOR
    ========================================= */
-.monitor-panel { grid-column: 2; overflow: hidden; }
+.monitor-panel { grid-column: 2; overflow: hidden; background: rgba(5, 10, 20, 0.4); }
 #jobs-progress-container { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
 .job-progress-card { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); padding: 15px; border-radius: 8px; }
 .progress-track { width: 100%; height: 4px; background: rgba(255,255,255,0.1); margin: 10px 0; border-radius: 2px; }
@@ -189,7 +184,7 @@ h2 { margin: 0 0 15px 0; font-family: var(--font-display); font-size: 1.2rem; le
    5. COLONNE DROITE : INSPECTOR
    ========================================= */
 .details-panel { grid-column: 3; }
-.info-card { background: rgba(0,0,0,0.4); border: 1px solid var(--neon-blue); padding: 20px; border-radius: 8px; opacity: 0; transition: opacity 0.3s; display: none; }
+.info-card { background: rgba(0,0,0,0.6); border: 1px solid var(--neon-blue); padding: 20px; border-radius: 8px; opacity: 0; transition: opacity 0.3s; display: none; }
 .info-card.visible { opacity: 1; display: block; }
 .specs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
 .field-group { margin-bottom: 5px; }
@@ -199,19 +194,19 @@ h2 { margin: 0 0 15px 0; font-family: var(--font-display); font-size: 1.2rem; le
 
 /* QUANTUM CALCULATOR */
 .train-form { margin-top: 10px; }
-.ts-control-panel { background: rgba(0,0,0,0.5); border: 1px solid #444; border-radius: 6px; padding: 15px; margin-top: 5px; }
-.ts-display { background: #000; border: 1px solid var(--neon-blue); color: var(--neon-blue); font-family: 'Orbitron', sans-serif; font-size: 1.5rem; text-align: center; padding: 10px; margin-bottom: 10px; border-radius: 4px; letter-spacing: 2px; box-shadow: inset 0 0 15px rgba(0,243,255,0.1); }
+.ts-control-panel { background: rgba(0,0,0,0.3); border: 1px solid #444; border-radius: 6px; padding: 15px; margin-top: 5px; }
+.ts-display { background: rgba(0,0,0,0.8); border: 1px solid var(--neon-blue); color: var(--neon-blue); font-family: 'Orbitron', sans-serif; font-size: 1.5rem; text-align: center; padding: 10px; margin-bottom: 10px; border-radius: 4px; letter-spacing: 2px; box-shadow: inset 0 0 10px rgba(0,243,255,0.1); }
 .ts-switch-row { display: flex; gap: 5px; margin-bottom: 10px; }
-.mode-btn { flex: 1; padding: 8px; border: 1px solid #444; background: rgba(255,255,255,0.02); color: #666; font-family: var(--font-display); cursor: pointer; transition: 0.2s; font-size: 0.7rem; text-transform: uppercase; }
-.mode-btn.active-add { background: rgba(0,255,0,0.1); border-color: #0f0; color: #0f0; box-shadow: 0 0 5px rgba(0,255,0,0.2); }
-.mode-btn.active-sub { background: rgba(255,0,0,0.1); border-color: #f00; color: #f00; box-shadow: 0 0 5px rgba(255,0,0,0.2); }
+.mode-btn { flex: 1; padding: 8px; border: 1px solid #444; background: transparent; color: #666; font-family: var(--font-display); cursor: pointer; transition: 0.2s; font-size: 0.7rem; text-transform: uppercase; }
+.mode-btn.active-add { background: rgba(0,255,0,0.1); border-color: #0f0; color: #0f0; box-shadow: 0 0 8px rgba(0,255,0,0.2); }
+.mode-btn.active-sub { background: rgba(255,0,0,0.1); border-color: #f00; color: #f00; box-shadow: 0 0 8px rgba(255,0,0,0.2); }
 .ts-numpad { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.num-btn { padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid #555; color: white; cursor: pointer; font-weight: bold; font-family: var(--font-display); transition: 0.1s; }
-.num-btn:hover { border-color: var(--neon-blue); color: var(--neon-blue); background: rgba(0,243,255,0.1); }
+.num-btn { padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid #555; color: white; cursor: pointer; font-weight: bold; font-family: var(--font-display); transition: 0.1s; }
+.num-btn:hover { border-color: var(--neon-blue); color: var(--neon-blue); }
 
 /* MODALS */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 2000; backdrop-filter: blur(5px); }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 2000; }
 .modal-overlay.active { display: flex; }
-.modal-box { background: #050a14; border: 1px solid var(--neon-blue); padding: 30px; border-radius: 10px; max-width: 400px; text-align: center; box-shadow: 0 0 30px rgba(0,243,255,0.2); }
+.modal-box { background: #050a14; border: 1px solid var(--neon-blue); padding: 30px; border-radius: 10px; max-width: 400px; text-align: center; box-shadow: 0 0 30px rgba(0,243,255,0.1); }
 .modal-title { font-size: 1.2rem; margin-bottom: 10px; font-family: var(--font-display); color: var(--neon-blue); }
 .modal-message { margin-bottom: 25px; color: #ccc; line-height: 1.4; }

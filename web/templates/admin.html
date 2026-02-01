@@ -14,14 +14,11 @@
     </div>
 
     <div class="admin-layout">
-
         <aside class="glass-panel model-list-panel">
             <div class="header"><h2>SYSTEM <span class="highlight">REPOSITORY</span></h2></div>
-
             <div class="nav-buttons">
                 <button onclick="window.location.href='/'" class="neon-btn" style="width:100%; border-color:#444;">🏠 BACK TO ARCADE</button>
             </div>
-
             <div id="admin-model-list" class="model-list">
                 <div style="padding:20px; text-align:center; color:#666;">Initializing Network...</div>
             </div>
@@ -39,7 +36,6 @@
 
         <aside class="glass-panel details-panel">
             <div class="header"><h2>INSPECTOR</h2></div>
-
             <div id="model-details-card" class="info-card">
                 <h3 id="detail-uuid" style="color:var(--neon-blue); font-size: 0.75rem; word-break: break-all; margin-bottom: 15px; border-bottom:1px solid #333; padding-bottom:10px;">SELECT MODEL</h3>
 
@@ -56,21 +52,17 @@
 
                 <div class="train-form">
                     <label style="color:white; font-size:0.8rem; margin-bottom:8px; display:block; font-family:var(--font-display);">TARGET TIMESTEPS</label>
-
                     <div class="ts-control-panel">
                         <div id="ts-display" class="ts-display">50,000</div>
-
                         <div class="ts-switch-row">
                             <button id="btn-mode-add" class="mode-btn active-add" onclick="setOpMode(1)">ADD (+)</button>
                             <button id="btn-mode-sub" class="mode-btn" onclick="setOpMode(-1)">REMOVE (-)</button>
                         </div>
-
                         <div class="ts-numpad">
                             <button class="num-btn" onclick="modifyTimesteps(10000)">10 K</button>
                             <button class="num-btn" onclick="modifyTimesteps(100000)">100 K</button>
                         </div>
                     </div>
-
                     <button id="btn-launch-train" onclick="launchTraining()" class="neon-btn btn-warning" style="width:100%; margin-top: 20px;">
                         🚀 START RETRAINING
                     </button>
