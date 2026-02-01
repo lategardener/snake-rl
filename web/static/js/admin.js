@@ -2,10 +2,15 @@ const API_BASE_URL = window.location.origin;
 let activeWebSockets = {};
 let selectedModel = null;
 
+// --- VARIABLES CALCULATEUR TIMESTEPS ---
+let currentTimesteps = 50000;
+let operationMode = 1; // 1 = ADD, -1 = SUBTRACT
+
 document.addEventListener('DOMContentLoaded', () => {
     loadModels();
     syncActiveJobs();
     setInterval(syncActiveJobs, 5000);
+    updateTimestepDisplay(); // Init affichage à 50k
 });
 
 // --- ALERTES ---
@@ -19,7 +24,7 @@ function showAlert(title, message, type = 'info') {
 }
 function closeCustomAlert() { document.getElementById('customAlertOverlay').classList.remove('active'); }
 
-// --- LISTE DES MODÈLES ---
+// --- 1. LISTE DES MODÈLES (Groupée par Grid Size) ---
 async function loadModels() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/models`);
@@ -32,28 +37,48 @@ async function loadModels() {
             return;
         }
 
-        // Le tri est fait côté backend (3x3 d'abord), on itère simplement
-        models.forEach(model => {
-            const el = document.createElement('div');
-            el.className = 'model-card';
-
-            // Gestion des couleurs de badges selon le grid_size
-            let gridColorClass = model.grid_size === 3 ? 'badge-purple' : 'badge-cyan';
-
-            el.innerHTML = `
-                <div class="card-top">
-                    <span class="grid-badge ${gridColorClass}">${model.grid_size}x${model.grid_size}</span>
-                    <span class="mode-badge" style="border:1px solid #0ff; color:#0ff;">${model.game_mode ? model.game_mode.toUpperCase() : 'CLASSIC'}</span>
-                </div>
-                <div class="uuid">${model.uuid}</div>
-                <div style="font-size:0.7rem; color:#888; margin-top:5px; display:flex; justify-content:space-between;">
-                   <span>R: ${model.final_mean_reward ? model.final_mean_reward.toFixed(2) : 'N/A'}</span>
-                   <span>${model.algorithm || 'PPO'}</span>
-                </div>
-            `;
-            el.onclick = () => selectForRetrain(model, el);
-            container.appendChild(el);
+        // Grouper les modèles par grid_size
+        const grouped = {};
+        models.forEach(m => {
+            if (!grouped[m.grid_size]) grouped[m.grid_size] = [];
+            grouped[m.grid_size].push(m);
         });
+
+        // Trier les clés de grid (3, 5, 10...)
+        const gridSizes = Object.keys(grouped).map(Number).sort((a,b) => a - b);
+
+        gridSizes.forEach(size => {
+            // Créer le séparateur
+            const separator = document.createElement('div');
+            separator.className = 'grid-separator';
+            separator.innerHTML = `<span class="diamond">◆</span> GRID SYSTEM [ ${size}x${size} ] <span class="diamond">◆</span>`;
+            container.appendChild(separator);
+
+            // Créer les cartes pour ce groupe
+            grouped[size].forEach(model => {
+                const el = document.createElement('div');
+                el.className = 'model-card';
+
+                let modeBadge = model.game_mode === 'walls'
+                    ? '<span class="grid-badge badge-walls">WALLS</span>'
+                    : '<span class="grid-badge badge-classic">CLASSIC</span>';
+
+                el.innerHTML = `
+                    <div class="card-top">
+                        <span class="grid-badge" style="background:#333;">${model.algorithm || 'PPO'}</span>
+                        ${modeBadge}
+                    </div>
+                    <div class="uuid">${model.uuid}</div>
+                    <div style="font-size:0.75rem; color:#888; margin-top:8px; display:flex; justify-content:space-between;">
+                       <span>Created: ${model.date ? model.date.split(' ')[0] : 'N/A'}</span>
+                       <span style="color:${model.final_mean_reward > 0 ? '#0f0' : '#888'}">R: ${model.final_mean_reward ? model.final_mean_reward.toFixed(2) : 'N/A'}</span>
+                    </div>
+                `;
+                el.onclick = () => selectForRetrain(model, el);
+                container.appendChild(el);
+            });
+        });
+
     } catch(e) {
         console.error("Load Error:", e);
     }
@@ -73,19 +98,49 @@ function selectForRetrain(model, el) {
     document.getElementById('detail-algo').value = model.algorithm || "PPO";
     document.getElementById('detail-grid').value = `${model.grid_size} x ${model.grid_size}`;
     document.getElementById('detail-mode').value = (model.game_mode || "CLASSIC").toUpperCase();
+    document.getElementById('detail-envs').value = model.n_envs !== undefined ? model.n_envs : "4";
 
-    // N_ENVS (Récupéré correctement maintenant)
-    document.getElementById('detail-envs').value = model.n_envs !== undefined ? model.n_envs : "undefined";
-
-    // FINAL REWARD
     const rewardVal = model.final_mean_reward !== undefined ? model.final_mean_reward.toFixed(4) : "0.0000";
     document.getElementById('detail-reward').value = rewardVal;
 
-    // Reset du champ editable (Timesteps)
-    document.getElementById('train-timesteps').value = 50000;
+    // Reset du Calculateur à 50k par défaut
+    currentTimesteps = 50000;
+    updateTimestepDisplay();
 }
 
-// --- JOBS (inchangé, sauf gestion erreurs) ---
+// --- 2. CALCULATOR LOGIC (Contrôle Timesteps) ---
+function setOpMode(mode) {
+    operationMode = mode;
+    const btnAdd = document.getElementById('btn-mode-add');
+    const btnSub = document.getElementById('btn-mode-sub');
+
+    if (mode === 1) {
+        btnAdd.classList.add('active-add');
+        btnSub.classList.remove('active-sub');
+    } else {
+        btnAdd.classList.remove('active-add');
+        btnSub.classList.add('active-sub');
+    }
+}
+
+function modifyTimesteps(amount) {
+    // Calculer la nouvelle valeur
+    let newValue = currentTimesteps + (amount * operationMode);
+
+    // Contraintes strictes : Min 50k, Max 500k
+    if (newValue < 50000) newValue = 50000;
+    if (newValue > 500000) newValue = 500000;
+
+    currentTimesteps = newValue;
+    updateTimestepDisplay();
+}
+
+function updateTimestepDisplay() {
+    // Formattage avec virgule pour la lisibilité (ex: 50,000)
+    document.getElementById('ts-display').innerText = currentTimesteps.toLocaleString('en-US');
+}
+
+// --- 3. GESTION DES JOBS (WebSocket) ---
 async function syncActiveJobs() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/train/active`);
@@ -146,7 +201,7 @@ function listenToJob(runId) {
             setTimeout(() => {
                 const card = document.getElementById(`job-card-${runId}`);
                 if(card) card.remove();
-                loadModels(); // Recharger la liste
+                loadModels(); // Refresh list
             }, 3000);
         } else if (data.progress !== undefined) {
             const p = Math.round(data.progress * 100);
@@ -154,7 +209,7 @@ function listenToJob(runId) {
             document.getElementById(`percent-${runId}`).innerText = p + "%";
             document.getElementById(`status-${runId}`).innerText = "Optimizing...";
             if(data.stats && data.stats.mean_reward) {
-                document.getElementById(`reward-${runId}`).innerText = "Reward: " + data.stats.mean_reward.toFixed(2);
+                document.getElementById(`reward-${runId}`).innerText = "R: " + data.stats.mean_reward.toFixed(2);
             }
         }
     };
@@ -164,15 +219,8 @@ function listenToJob(runId) {
 async function launchTraining() {
     if (!selectedModel) return showAlert("Error", "Select model first", "error");
 
-    const tsInput = document.getElementById('train-timesteps');
-    let timesteps = parseInt(tsInput.value);
-
-    if (timesteps < 20000 || timesteps > 500000) {
-        return showAlert("Invalid Config", "Timesteps must be between 20k and 500k.", "error");
-    }
-
     const payload = {
-        timesteps: timesteps,
+        timesteps: currentTimesteps, // Utilise la variable globale du calculateur
         n_envs: selectedModel.n_envs || 4,
         grid_size: selectedModel.grid_size,
         game_mode: selectedModel.game_mode,
@@ -188,7 +236,7 @@ async function launchTraining() {
         if(data.run_id) {
             createJobCard(data.run_id);
             listenToJob(data.run_id);
-            showAlert("Started", "Training initiated.", "success");
+            showAlert("Started", `Training started for ${currentTimesteps} steps.`, "success");
         }
     } catch(e) { showAlert("Error", "Failed to start", "error"); }
 }
