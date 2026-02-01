@@ -2,7 +2,7 @@ const API_BASE_URL = window.location.origin;
 let activeWebSockets = {};
 let selectedModel = null;
 
-// --- VARIABLES CALCULATEUR TIMESTEPS ---
+// --- VARIABLES CALCULATEUR ---
 let currentTimesteps = 50000;
 let operationMode = 1; // 1 = ADD, -1 = SUBTRACT
 
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModels();
     syncActiveJobs();
     setInterval(syncActiveJobs, 5000);
-    updateTimestepDisplay(); // Init affichage à 50k
+    updateTimestepDisplay();
 });
 
 // --- ALERTES ---
@@ -19,7 +19,12 @@ function showAlert(title, message, type = 'info') {
     document.getElementById('alertTitle').innerText = title;
     document.getElementById('alertMessage').innerHTML = message;
     const box = document.getElementById('customAlertBox');
-    box.className = 'modal-box ' + type;
+
+    // Reset classes
+    box.className = 'modal-box';
+    if(type === 'error') box.style.borderColor = '#bc13fe'; // Pink
+    else box.style.borderColor = '#00f3ff'; // Blue
+
     overlay.classList.add('active');
 }
 function closeCustomAlert() { document.getElementById('customAlertOverlay').classList.remove('active'); }
@@ -33,45 +38,52 @@ async function loadModels() {
         container.innerHTML = '';
 
         if(models.length === 0) {
-            container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No models found.</div>';
+            container.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">No models found in repository.</div>';
             return;
         }
 
-        // Grouper les modèles par grid_size
+        // Groupement
         const grouped = {};
         models.forEach(m => {
             if (!grouped[m.grid_size]) grouped[m.grid_size] = [];
             grouped[m.grid_size].push(m);
         });
 
-        // Trier les clés de grid (3, 5, 10...)
+        // Tri des tailles
         const gridSizes = Object.keys(grouped).map(Number).sort((a,b) => a - b);
 
         gridSizes.forEach(size => {
-            // Créer le séparateur
+            // Séparateur (Styled in admin.css)
             const separator = document.createElement('div');
             separator.className = 'grid-separator';
-            separator.innerHTML = `<span class="diamond">◆</span> GRID SYSTEM [ ${size}x${size} ] <span class="diamond">◆</span>`;
+            separator.innerHTML = `GRID SYSTEM [ ${size}x${size} ]`;
             container.appendChild(separator);
 
-            // Créer les cartes pour ce groupe
+            // Tri par Reward
+            grouped[size].sort((a, b) => (b.final_mean_reward || 0) - (a.final_mean_reward || 0));
+
             grouped[size].forEach(model => {
                 const el = document.createElement('div');
                 el.className = 'model-card';
 
-                let modeBadge = model.game_mode === 'walls'
-                    ? '<span class="grid-badge badge-walls">WALLS</span>'
-                    : '<span class="grid-badge badge-classic">CLASSIC</span>';
+                const isWalls = model.game_mode === 'walls';
+                const badgeClass = isWalls ? 'badge-walls' : 'badge-classic';
+                const badgeText = isWalls ? 'WALLS' : 'CLASSIC';
+
+                let shortDate = "N/A";
+                if(model.date) shortDate = model.date.split(' ')[0];
 
                 el.innerHTML = `
                     <div class="card-top">
-                        <span class="grid-badge" style="background:#333;">${model.algorithm || 'PPO'}</span>
-                        ${modeBadge}
+                        <span class="${badgeClass}">${badgeText}</span>
+                        <span class="algo-badge">${model.algorithm || 'PPO'}</span>
                     </div>
                     <div class="uuid">${model.uuid}</div>
-                    <div style="font-size:0.75rem; color:#888; margin-top:8px; display:flex; justify-content:space-between;">
-                       <span>Created: ${model.date ? model.date.split(' ')[0] : 'N/A'}</span>
-                       <span style="color:${model.final_mean_reward > 0 ? '#0f0' : '#888'}">R: ${model.final_mean_reward ? model.final_mean_reward.toFixed(2) : 'N/A'}</span>
+                    <div class="card-stats">
+                        <span>📅 ${shortDate}</span>
+                        <span style="color:${model.final_mean_reward > 0 ? 'var(--neon-green)' : '#888'}">
+                            R: ${model.final_mean_reward ? model.final_mean_reward.toFixed(2) : '0.00'}
+                        </span>
                     </div>
                 `;
                 el.onclick = () => selectForRetrain(model, el);
@@ -81,6 +93,7 @@ async function loadModels() {
 
     } catch(e) {
         console.error("Load Error:", e);
+        document.getElementById('admin-model-list').innerHTML = '<div style="color:red; text-align:center; padding:20px;">Connection Error</div>';
     }
 }
 
@@ -92,7 +105,7 @@ function selectForRetrain(model, el) {
     const card = document.getElementById('model-details-card');
     card.classList.add('visible');
 
-    // Remplissage INSPECTOR
+    // Remplissage Formulaire
     document.getElementById('detail-uuid').innerText = "AGENT: " + model.uuid;
     document.getElementById('detail-date').value = model.date || "Unknown";
     document.getElementById('detail-algo').value = model.algorithm || "PPO";
@@ -103,12 +116,12 @@ function selectForRetrain(model, el) {
     const rewardVal = model.final_mean_reward !== undefined ? model.final_mean_reward.toFixed(4) : "0.0000";
     document.getElementById('detail-reward').value = rewardVal;
 
-    // Reset du Calculateur à 50k par défaut
+    // Reset Calculateur
     currentTimesteps = 50000;
     updateTimestepDisplay();
 }
 
-// --- 2. CALCULATOR LOGIC (Contrôle Timesteps) ---
+// --- 2. CALCULATOR LOGIC ---
 function setOpMode(mode) {
     operationMode = mode;
     const btnAdd = document.getElementById('btn-mode-add');
@@ -124,10 +137,9 @@ function setOpMode(mode) {
 }
 
 function modifyTimesteps(amount) {
-    // Calculer la nouvelle valeur
     let newValue = currentTimesteps + (amount * operationMode);
 
-    // Contraintes strictes : Min 50k, Max 500k
+    // Contraintes strictes
     if (newValue < 50000) newValue = 50000;
     if (newValue > 500000) newValue = 500000;
 
@@ -136,11 +148,10 @@ function modifyTimesteps(amount) {
 }
 
 function updateTimestepDisplay() {
-    // Formattage avec virgule pour la lisibilité (ex: 50,000)
     document.getElementById('ts-display').innerText = currentTimesteps.toLocaleString('en-US');
 }
 
-// --- 3. GESTION DES JOBS (WebSocket) ---
+// --- 3. MONITOR LOGIC ---
 async function syncActiveJobs() {
     try {
         const res = await fetch(`${API_BASE_URL}/api/train/active`);
@@ -193,7 +204,7 @@ function listenToJob(runId) {
 
         if (data.status === 'finished') {
             document.getElementById(`job-card-${runId}`).innerHTML = `
-                <div class="training-complete-banner">
+                <div style="border: 1px solid var(--neon-green); color: var(--neon-green); padding: 10px; text-align: center; border-radius: 5px; background: rgba(0,255,0,0.05);">
                     <h3>✔ TRAINING COMPLETE</h3>
                     <p>Agent Saved.</p>
                 </div>`;
@@ -201,7 +212,7 @@ function listenToJob(runId) {
             setTimeout(() => {
                 const card = document.getElementById(`job-card-${runId}`);
                 if(card) card.remove();
-                loadModels(); // Refresh list
+                loadModels();
             }, 3000);
         } else if (data.progress !== undefined) {
             const p = Math.round(data.progress * 100);
@@ -220,7 +231,7 @@ async function launchTraining() {
     if (!selectedModel) return showAlert("Error", "Select model first", "error");
 
     const payload = {
-        timesteps: currentTimesteps, // Utilise la variable globale du calculateur
+        timesteps: currentTimesteps,
         n_envs: selectedModel.n_envs || 4,
         grid_size: selectedModel.grid_size,
         game_mode: selectedModel.game_mode,

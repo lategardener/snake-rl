@@ -4,113 +4,30 @@
     <meta charset="UTF-8">
     <title>Admin • Neural Command</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./static/css/style.css">
-    <style>
-        .admin-layout { display: grid; grid-template-columns: 320px 1fr 380px; gap: 20px; width: 95vw; height: 90vh; margin: 20px auto; }
 
-        /* --- SIDEBAR & LISTS --- */
-        .model-list-panel { grid-column: 1; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid rgba(255,255,255,0.1); }
-
-        /* Espacement bouton Home */
-        .nav-buttons { margin-top: 20px; margin-bottom: 20px; }
-
-        .model-list { overflow-y: auto; padding-right: 5px; flex: 1; }
-
-        /* Séparateur de Grille (Style Cyberpunk) */
-        .grid-separator {
-            display: flex; align-items: center; justify-content: center;
-            color: var(--neon-blue); font-family: var(--font-display);
-            margin: 25px 0 15px 0; letter-spacing: 2px; font-size: 0.85rem;
-            position: relative;
-        }
-        .grid-separator::before, .grid-separator::after {
-            content: ''; height: 1px; flex: 1; background: var(--neon-blue);
-            opacity: 0.5; margin: 0 10px; box-shadow: 0 0 5px var(--neon-blue);
-        }
-        .diamond { color: var(--neon-blue); font-size: 0.6rem; margin: 0 5px; }
-
-        /* Cartes Modèles */
-        .model-card {
-            background: rgba(10, 15, 30, 0.8); border: 1px solid #333;
-            border-radius: 8px; padding: 15px; margin-bottom: 10px;
-            cursor: pointer; transition: all 0.2s; position: relative;
-        }
-        .model-card:hover, .model-card.active { border-color: var(--neon-blue); background: rgba(0, 255, 255, 0.05); box-shadow: inset 0 0 15px rgba(0,255,255,0.1); }
-        .card-top { display: flex; justify-content: space-between; margin-bottom: 8px; }
-        .grid-badge { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; background: #333; color: #fff; }
-        .badge-walls { background: #a0f; color: white; border: 1px solid #a0f; } /* Violet */
-        .badge-classic { border: 1px solid var(--neon-blue); color: var(--neon-blue); } /* Cyan */
-
-        /* --- TIMESTEP CALCULATOR WIDGET --- */
-        .ts-control-panel {
-            background: rgba(0,0,0,0.3); border: 1px solid #444;
-            border-radius: 8px; padding: 15px; margin-top: 10px;
-        }
-
-        .ts-display {
-            background: rgba(0,0,0,0.8); border: 1px solid var(--neon-blue);
-            color: var(--neon-blue); font-family: 'Orbitron', sans-serif;
-            font-size: 1.5rem; text-align: center; padding: 10px;
-            margin-bottom: 15px; border-radius: 4px; letter-spacing: 2px;
-            box-shadow: 0 0 10px rgba(0,255,255,0.1);
-        }
-
-        .ts-switch-row { display: flex; gap: 10px; margin-bottom: 10px; }
-        .mode-btn {
-            flex: 1; padding: 8px; border: 1px solid #555; background: rgba(255,255,255,0.05);
-            color: #666; font-family: var(--font-display); cursor: pointer; transition: all 0.2s;
-            font-size: 0.8rem;
-        }
-        .mode-btn.active-add { background: rgba(0, 255, 100, 0.2); border-color: #0f0; color: #0f0; box-shadow: 0 0 10px rgba(0,255,0,0.2); }
-        .mode-btn.active-sub { background: rgba(255, 50, 50, 0.2); border-color: #f00; color: #f00; box-shadow: 0 0 10px rgba(255,0,0,0.2); }
-
-        .ts-numpad { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .num-btn {
-            padding: 12px; background: rgba(255,255,255,0.1); border: 1px solid #555;
-            color: white; font-family: var(--font-body); font-weight: bold; cursor: pointer;
-        }
-        .num-btn:hover { border-color: var(--neon-blue); color: var(--neon-blue); }
-        .num-btn:active { transform: scale(0.98); }
-
-        /* --- OTHER --- */
-        .monitor-panel { grid-column: 2; display: flex; flex-direction: column; overflow: hidden; }
-        #jobs-progress-container { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
-        .job-progress-card { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); padding: 20px; border-radius: 12px; }
-        .progress-track { width: 100%; height: 6px; background: rgba(255,255,255,0.1); margin: 15px 0; }
-        .progress-fill { height: 100%; width: 0%; background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); transition: width 0.5s ease; }
-
-        .details-panel { grid-column: 3; display: flex; flex-direction: column; }
-        .info-card { background: rgba(0,0,0,0.6); border: 1px solid var(--neon-blue); padding: 25px; border-radius: 12px; opacity: 0; transition: opacity 0.3s; display: none; }
-        .info-card.visible { opacity: 1; display: block; }
-
-        .locked-field { background: transparent; border: 1px solid #444; color: #ccc; padding: 8px; width: 100%; font-family: monospace; margin-bottom: 10px; }
-        label { display: block; font-size: 0.7rem; color: #666; margin-bottom: 3px; text-transform: uppercase; }
-        .highlight-field { border-color: var(--neon-blue); color: var(--neon-blue); font-weight: bold; }
-
-        /* Modal */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 1000; }
-        .modal-overlay.active { display: flex; }
-        .modal-box { background: #111; border: 1px solid var(--neon-blue); padding: 30px; border-radius: 10px; max-width: 400px; text-align: center; }
-    </style>
+    <link rel="stylesheet" href="./static/css/admin.css">
 </head>
 <body>
     <div class="background-blobs"><div class="blob blob-1"></div><div class="blob blob-2"></div></div>
 
     <div class="admin-layout">
+
         <aside class="glass-panel model-list-panel">
             <div class="header"><h2>SYSTEM <span class="highlight">REPOSITORY</span></h2></div>
 
             <div class="nav-buttons">
-                <button onclick="window.location.href='/'" class="neon-btn" style="width:100%; border-color:#444;">🏠 HOME</button>
+                <button onclick="window.location.href='/'" class="neon-btn" style="width:100%; border-color:#444;">🏠 BACK TO ARCADE</button>
             </div>
 
-            <div id="admin-model-list" class="model-list"><div class="loading">Initializing...</div></div>
+            <div id="admin-model-list" class="model-list">
+                <div style="padding:20px; text-align:center; color:#666;">Initializing Network...</div>
+            </div>
         </aside>
 
         <main class="glass-panel monitor-panel">
-            <div class="arena-header" style="width:100%">
-                <h2>ACTIVE <span class="highlight">TRAINING</span></h2>
-                <div class="live-tag">● LIVE</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0;">ACTIVE <span class="highlight">JOBS</span></h2>
+                <div class="live-tag">● LIVE SYNC</div>
             </div>
             <div id="jobs-progress-container">
                 <div id="no-jobs-msg" style="text-align: center; color: #444; margin-top: 100px; font-family: var(--font-display);">NO ACTIVE PROCESS</div>
@@ -121,21 +38,21 @@
             <div class="header"><h2>INSPECTOR</h2></div>
 
             <div id="model-details-card" class="info-card">
-                <h3 id="detail-uuid" style="color:var(--neon-blue); font-size: 0.8rem; word-break: break-all; margin-bottom: 20px;">SELECT MODEL</h3>
+                <h3 id="detail-uuid" style="color:var(--neon-blue); font-size: 0.75rem; word-break: break-all; margin-bottom: 15px; border-bottom:1px solid #333; padding-bottom:10px;">SELECT MODEL</h3>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div><label>Date</label><input id="detail-date" class="locked-field" readonly></div>
-                    <div><label>Algo</label><input id="detail-algo" class="locked-field" readonly></div>
-                    <div><label>Grid</label><input id="detail-grid" class="locked-field" readonly></div>
-                    <div><label>Mode</label><input id="detail-mode" class="locked-field" readonly></div>
-                    <div><label>Envs</label><input id="detail-envs" class="locked-field" readonly></div>
-                    <div><label style="color:var(--neon-blue)">Reward</label><input id="detail-reward" class="locked-field highlight-field" readonly></div>
+                <div class="specs-grid">
+                    <div class="field-group"><span class="field-label">Date</span><input id="detail-date" class="locked-field" readonly></div>
+                    <div class="field-group"><span class="field-label">Algo</span><input id="detail-algo" class="locked-field" readonly></div>
+                    <div class="field-group"><span class="field-label">Grid</span><input id="detail-grid" class="locked-field" readonly></div>
+                    <div class="field-group"><span class="field-label">Mode</span><input id="detail-mode" class="locked-field" readonly></div>
+                    <div class="field-group"><span class="field-label">Envs</span><input id="detail-envs" class="locked-field" readonly></div>
+                    <div class="field-group"><span class="field-label" style="color:var(--neon-blue)">Last Reward</span><input id="detail-reward" class="locked-field highlight-field" readonly></div>
                 </div>
 
                 <hr style="border:0; border-top:1px solid #333; margin: 15px 0;">
 
                 <div class="train-form">
-                    <label>RETRAIN TIMESTEPS (50K - 500K)</label>
+                    <label style="color:white; font-size:0.8rem; margin-bottom:8px; display:block; font-family:var(--font-display);">TARGET TIMESTEPS</label>
 
                     <div class="ts-control-panel">
                         <div id="ts-display" class="ts-display">50,000</div>
@@ -161,9 +78,9 @@
 
     <div id="customAlertOverlay" class="modal-overlay">
         <div id="customAlertBox" class="modal-box">
-            <div id="alertTitle" class="modal-title" style="color:var(--neon-blue); margin-bottom:10px; font-weight:bold;">TITLE</div>
-            <p id="alertMessage" class="modal-message" style="margin-bottom:20px; color:#ccc;">Message</p>
-            <button onclick="closeCustomAlert()" class="neon-btn">OK</button>
+            <div id="alertTitle" class="modal-title">TITLE</div>
+            <p id="alertMessage" class="modal-message">Message</p>
+            <button onclick="closeCustomAlert()" class="neon-btn" style="width:100%">ACKNOWLEDGE</button>
         </div>
     </div>
 

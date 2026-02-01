@@ -1,0 +1,327 @@
+/* =========================================
+   1. BASE STYLES & VARIABLES (Inspiré de style.css)
+   ========================================= */
+:root {
+    --bg-dark: #050510;
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --neon-blue: #00f3ff;
+    --neon-pink: #bc13fe;
+    --neon-green: #0aff0a;
+    --text-main: #ffffff;
+    --text-muted: #a0a0a0;
+    --font-display: 'Orbitron', sans-serif;
+    --font-body: 'Rajdhani', sans-serif;
+}
+
+body {
+    margin: 0;
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    font-family: var(--font-body);
+    height: 100vh;
+    overflow: hidden; /* Important pour le dashboard */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* --- Background ambiance (Blobs) --- */
+.background-blobs {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: -1;
+    overflow: hidden;
+}
+.blob {
+    position: absolute;
+    filter: blur(80px);
+    opacity: 0.4;
+    border-radius: 50%;
+}
+.blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: purple; animation: move1 20s infinite alternate; }
+.blob-2 { bottom: -10%; right: -10%; width: 60vw; height: 60vw; background: blue; animation: move2 25s infinite alternate; }
+
+@keyframes move1 { from { transform: translate(0,0); } to { transform: translate(50px, 100px); } }
+@keyframes move2 { from { transform: translate(0,0); } to { transform: translate(-50px, -100px); } }
+
+/* --- GLOBAL UI COMPONENTS --- */
+.glass-panel {
+    background: rgba(15, 20, 35, 0.7); /* Un peu plus sombre pour l'admin */
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+}
+
+.neon-btn {
+    background: transparent;
+    border: 1px solid var(--neon-blue);
+    color: var(--neon-blue);
+    padding: 10px 20px;
+    font-family: var(--font-display);
+    cursor: pointer;
+    transition: 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+.neon-btn:hover { background: var(--neon-blue); color: black; box-shadow: 0 0 15px var(--neon-blue); }
+
+.btn-warning { border-color: #ffaa00; color: #ffaa00; }
+.btn-warning:hover { background: #ffaa00; color: black; box-shadow: 0 0 15px #ffaa00; }
+
+.highlight { color: var(--neon-blue); text-shadow: 0 0 10px var(--neon-blue); }
+
+h2 { margin: 0 0 15px 0; font-family: var(--font-display); font-size: 1.2rem; letter-spacing: 2px; }
+
+/* =========================================
+   2. ADMIN LAYOUT (GRID SYSTEM)
+   ========================================= */
+.admin-layout {
+    display: grid;
+    grid-template-columns: 340px 1fr 380px; /* Colonnes ajustées */
+    gap: 20px;
+    width: 96vw;
+    height: 92vh;
+    margin: 20px auto;
+    overflow: hidden;
+}
+
+/* =========================================
+   3. COLONNE GAUCHE : REPOSITORY
+   ========================================= */
+.model-list-panel {
+    grid-column: 1;
+    overflow: hidden;
+    border-right: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Headers fixes */
+.model-list-panel .header,
+.model-list-panel .nav-buttons {
+    flex-shrink: 0;
+}
+
+.nav-buttons { margin: 15px 0; }
+
+/* Zone de liste scrollable */
+.model-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+    margin-bottom: 10px;
+    /* Custom Scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: var(--neon-blue) #111;
+}
+.model-list::-webkit-scrollbar { width: 6px; }
+.model-list::-webkit-scrollbar-track { background: #111; }
+.model-list::-webkit-scrollbar-thumb { background: var(--neon-blue); border-radius: 3px; }
+
+/* --- Separator Style (Grid System) --- */
+.grid-separator {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--neon-blue);
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    letter-spacing: 2px;
+    margin: 20px 0 10px 0;
+    text-shadow: 0 0 5px var(--neon-blue);
+}
+.grid-separator::before, .grid-separator::after {
+    content: '';
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(90deg, transparent, var(--neon-blue), transparent);
+    opacity: 0.5;
+    margin: 0 10px;
+}
+
+/* --- Model Card --- */
+.model-card {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 3px solid #444;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.model-card:hover, .model-card.active {
+    background: rgba(0, 243, 255, 0.05);
+    border-color: var(--neon-blue);
+    border-left-color: var(--neon-blue);
+    box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.05);
+    transform: translateX(3px);
+}
+
+.card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.uuid { font-family: monospace; color: #ccc; font-size: 0.75rem; word-break: break-all; opacity: 0.7; margin-bottom: 5px; }
+.card-stats { display: flex; justify-content: space-between; font-size: 0.75rem; color: #888; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 4px; }
+
+/* Badges */
+.badge-walls { color: #d0f; font-weight: bold; font-size: 0.7rem; text-shadow: 0 0 5px #d0f; }
+.badge-classic { color: var(--neon-blue); font-weight: bold; font-size: 0.7rem; text-shadow: 0 0 5px var(--neon-blue); }
+.algo-badge { background: #222; padding: 1px 5px; border-radius: 3px; font-size: 0.65rem; border: 1px solid #444; }
+
+/* =========================================
+   4. COLONNE CENTRALE : MONITOR
+   ========================================= */
+.monitor-panel { grid-column: 2; overflow: hidden; }
+
+#jobs-progress-container {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.job-progress-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--glass-border);
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.progress-track { width: 100%; height: 4px; background: rgba(255,255,255,0.1); margin: 10px 0; border-radius: 2px; }
+.progress-fill { height: 100%; width: 0%; background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); transition: width 0.5s ease; border-radius: 2px; }
+
+.live-tag {
+    color: var(--neon-green);
+    font-size: 0.7rem;
+    font-family: monospace;
+    border: 1px solid var(--neon-green);
+    padding: 2px 6px;
+    border-radius: 4px;
+    animation: pulse 2s infinite;
+}
+@keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+/* =========================================
+   5. COLONNE DROITE : INSPECTOR & CALCULATOR
+   ========================================= */
+.details-panel { grid-column: 3; }
+
+.info-card {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--neon-blue);
+    padding: 20px;
+    border-radius: 8px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    display: none; /* Caché par défaut */
+}
+.info-card.visible { opacity: 1; display: block; }
+
+/* Champs readonly */
+.specs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+
+.field-group { margin-bottom: 5px; }
+.field-label { display: block; font-size: 0.65rem; color: #666; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
+.locked-field {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid #333;
+    color: #aaa;
+    padding: 8px;
+    width: 100%;
+    font-family: monospace;
+    font-size: 0.8rem;
+    box-sizing: border-box;
+    border-radius: 4px;
+}
+.highlight-field {
+    border-color: var(--neon-blue);
+    color: var(--neon-blue);
+    font-weight: bold;
+    background: rgba(0, 243, 255, 0.05);
+}
+
+/* --- QUANTUM TIMESTEP CALCULATOR --- */
+.train-form { margin-top: 10px; }
+.ts-control-panel {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 15px;
+    margin-top: 5px;
+}
+
+.ts-display {
+    background: #000;
+    border: 1px solid var(--neon-blue);
+    color: var(--neon-blue);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    text-align: center;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    letter-spacing: 2px;
+    box-shadow: inset 0 0 15px rgba(0,243,255,0.1);
+}
+
+.ts-switch-row { display: flex; gap: 5px; margin-bottom: 10px; }
+.mode-btn {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #444;
+    background: rgba(255,255,255,0.02);
+    color: #666;
+    font-family: var(--font-display);
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+.mode-btn.active-add { background: rgba(0,255,0,0.1); border-color: #0f0; color: #0f0; box-shadow: 0 0 5px rgba(0,255,0,0.2); }
+.mode-btn.active-sub { background: rgba(255,0,0,0.1); border-color: #f00; color: #f00; box-shadow: 0 0 5px rgba(255,0,0,0.2); }
+
+.ts-numpad { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.num-btn {
+    padding: 12px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid #555;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+    font-family: var(--font-display);
+    transition: 0.1s;
+}
+.num-btn:hover { border-color: var(--neon-blue); color: var(--neon-blue); background: rgba(0,243,255,0.1); }
+.num-btn:active { transform: scale(0.98); }
+
+/* =========================================
+   6. MODAL & ALERTS
+   ========================================= */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9);
+    display: none; align-items: center; justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(5px);
+}
+.modal-overlay.active { display: flex; }
+.modal-box {
+    background: #050a14;
+    border: 1px solid var(--neon-blue);
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 0 30px rgba(0,243,255,0.2);
+}
+.modal-title { font-size: 1.2rem; margin-bottom: 10px; font-family: var(--font-display); color: var(--neon-blue); }
+.modal-message { margin-bottom: 25px; color: #ccc; line-height: 1.4; }
