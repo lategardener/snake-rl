@@ -298,3 +298,57 @@ canvas {
     width: 100% !important;
     height: 100% !important;
 }
+
+.btn-stop {
+    margin-top: 10px;
+    background: rgba(255, 0, 0, 0.1);
+    border: 1px solid #ff3333;
+    color: #ff3333;
+    padding: 8px;
+    width: 100%;
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    border-radius: 4px;
+    transition: 0.2s;
+    display: block; /* Visible par défaut */
+}
+.btn-stop:hover {
+    background: #ff3333;
+    color: white;
+    box-shadow: 0 0 10px #ff3333;
+}
+
+/* Bouton Stop (Désactivé / Grisé) */
+.btn-stop:disabled, .btn-stop.disabled {
+    background: rgba(100, 100, 100, 0.1);
+    border-color: #555;
+    color: #555;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* Bouton Croix (Fermer) */
+.btn-close-job {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    color: #555;
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+    z-index: 10;
+    transition: 0.2s;
+    display: none; /* Caché par défaut */
+}
+.btn-close-job:hover {
+    color: white;
+    transform: scale(1.2);
+}
+
+/* Position relative sur la carte pour placer la croix */
+.job-progress-card {
+    position: relative;
+}

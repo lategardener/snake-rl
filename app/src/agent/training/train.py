@@ -6,7 +6,6 @@ import mlflow
 import tempfile
 from datetime import datetime
 from pathlib import Path
-import textwrap
 
 from dotenv import load_dotenv
 from huggingface_hub import HfApi, hf_hub_download
@@ -28,36 +27,37 @@ load_dotenv()
 hf_token = os.getenv("HF_HUB_TOKEN")
 
 
-# --- GESTIONNAIRE D'ÉTAT GLOBAL ---
+# =============================================================================
+# 1. GESTIONNAIRE D'ÉTAT
+# =============================================================================
 class TrainingStateManager:
     def __init__(self):
         self.active_trainings = {}
-        self.cancel_flags = set() # Stocke les IDs des runs à arrêter
+        self.cancel_flags = set()
 
-    # Ajout des champs timesteps et total_timesteps
-    def update(self, run_id, progress, grids, stats=None, timesteps=0, total_timesteps=1):
+    def update(self, run_id, progress, grids, stats=None, timesteps=0, total_timesteps=1, status="running"):
         self.active_trainings[run_id] = {
             "progress": progress,
-            "timesteps": timesteps,       # NOUVEAU: Steps actuels
-            "total_timesteps": total_timesteps, # NOUVEAU: Objectif
+            "timesteps": timesteps,  # Steps faits dans cette session
+            "total_timesteps": total_timesteps,  # Objectif de cette session
             "grids": grids,
             "stats": stats,
             "timestamp": time.time(),
-            "status": "running"
+            "status": status
         }
 
     def get_status(self, run_id):
-        # Si annulé, on renvoie un statut spécial
         if run_id in self.cancel_flags:
-            return {"status": "cancelled"}
+            # On conserve les stats mais on change le status
+            data = self.active_trainings.get(run_id, {})
+            data["status"] = "cancelled"
+            return data
         return self.active_trainings.get(run_id, None)
 
-    # Méthode appelée par l'API pour demander l'arrêt
     def cancel_job(self, run_id):
         print(f"🛑 Demande d'arrêt reçue pour {run_id}")
         self.cancel_flags.add(run_id)
 
-    # Vérifie si on doit arrêter
     def should_stop(self, run_id):
         return run_id in self.cancel_flags
 
@@ -71,39 +71,49 @@ class TrainingStateManager:
 training_manager = TrainingStateManager()
 
 
-# --- CALLBACK OPTIMISÉ (PLUS DE GRILLES + LOGIQUE STOP) ---
+# =============================================================================
+# 2. CALLBACK (CORRIGÉ : PROGRESSION RELATIVE)
+# =============================================================================
 class StreamCallback(BaseCallback):
-    def __init__(self, run_id, total_timesteps, verbose=0):
+    def __init__(self, run_id, target_session_timesteps, verbose=0):
         super().__init__(verbose)
         self.run_id = run_id
-        self.total_timesteps = total_timesteps
+        self.target_session_timesteps = target_session_timesteps  # L'objectif (ex: 50k)
+        self.initial_steps = None  # Pour stocker le point de départ
         self.last_update = 0
 
     def _on_step(self) -> bool:
-        # 1. Vérification d'arrêt (STOP)
+        # Vérification d'arrêt
         if training_manager.should_stop(self.run_id):
-            print(f"🛑 Arrêt immédiat de l'entraînement {self.run_id} via Callback")
-            return False # Retourner False arrête l'entraînement SB3
+            return False
 
-        # 2. Mise à jour toutes les 0.5 secondes pour fluidité
+        # Initialisation du point de départ au premier pas
+        if self.initial_steps is None:
+            self.initial_steps = self.num_timesteps
+
+        # Mise à jour fluide (0.5s)
         if time.time() - self.last_update > 0.5:
             try:
-                # Calcul précis
-                current_steps = self.num_timesteps
-                progress = current_steps / self.total_timesteps
+                # Calcul des steps faits UNIQUEMENT durant cette session
+                # self.num_timesteps contient le total cumulé depuis la naissance du modèle
+                session_steps_done = self.num_timesteps - self.initial_steps
+
+                # Progression relative (0.0 -> 1.0)
+                progress = session_steps_done / self.target_session_timesteps
+                # Cap à 1.0 pour l'affichage
+                progress = min(progress, 1.0)
 
                 stats = {}
                 if len(self.model.ep_info_buffer) > 0:
                     stats['mean_reward'] = safe_mean([ep['r'] for ep in self.model.ep_info_buffer])
 
-                # Envoi des données précises au manager
                 training_manager.update(
                     run_id=self.run_id,
                     progress=progress,
                     grids=[],
                     stats=stats,
-                    timesteps=current_steps,      # Donnée brute
-                    total_timesteps=self.total_timesteps # Objectif
+                    timesteps=session_steps_done,  # On envoie ce qui a été fait mtn
+                    total_timesteps=self.target_session_timesteps  # On envoie l'objectif
                 )
                 self.last_update = time.time()
             except Exception:
@@ -111,6 +121,9 @@ class StreamCallback(BaseCallback):
         return True
 
 
+# =============================================================================
+# 3. FONCTION PRINCIPALE
+# =============================================================================
 def train_snake(
         run_id: str,
         timesteps: int = 100_000,
@@ -122,11 +135,9 @@ def train_snake(
         base_uuid: str = None,
         show_logs: bool = False
 ):
-    if not hf_token:
-        print("⚠️ Token HF manquant")
-        return
+    if not hf_token: return
 
-    print(f"🚀 Initialisation du run {run_id}...")
+    # Init Manager
     training_manager.update(run_id, 0, [], {"status": "initializing"}, 0, timesteps)
 
     now = datetime.now()
@@ -134,40 +145,37 @@ def train_snake(
     date_str = now.strftime("%Y%m%d_%H%M%S")
     new_agent_uuid = str(uuid.uuid4())
 
-    print(f"🚀 Lancement entraînement {run_id} (Background)...")
+    print(f"🚀 Lancement entraînement {run_id}")
 
     agent = None
     is_finetuning = False
-    sb3_verbose = 1 if show_logs else 0
 
     try:
         if base_uuid:
+            # Chargement du modèle existant
             agent, loaded_grid_size = load_snake_model_data(base_uuid, hf_repo_id, show_logs)
-            if agent is None: raise ValueError(f"Modèle parent {base_uuid} introuvable")
+            if agent is None: raise ValueError("Modèle introuvable")
             grid_size = loaded_grid_size
             is_finetuning = True
-            mode_label = "FINE-TUNING"
 
+            # Récup meta pour conserver les params
             try:
-                model_folder = f"{grid_size}x{grid_size}/{base_uuid}"
-                meta_path = hf_hub_download(repo_id=hf_repo_id, filename=f"{model_folder}/metadata.json")
+                meta_path = hf_hub_download(repo_id=hf_repo_id,
+                                            filename=f"{grid_size}x{grid_size}/{base_uuid}/metadata.json")
                 with open(meta_path, 'r') as f:
                     old_meta = json.load(f)
-                if "n_envs" in old_meta: n_envs = old_meta["n_envs"]
-                if "game_mode" in old_meta: game_mode = old_meta["game_mode"]
-            except Exception:
+                n_envs = old_meta.get("n_envs", n_envs)
+                game_mode = old_meta.get("game_mode", game_mode)
+            except:
                 pass
         else:
             if grid_size is None: raise ValueError("Grid Size manquant")
-            mode_label = "NEW_TRAINING"
 
-        run_name = f"{mode_label}_{date_str}_{new_agent_uuid[:8]}"
+        # Config MLflow
         mlflow.set_experiment(f"Snake_{grid_size}x{grid_size}")
+        run_name = f"{'FINE-TUNING' if is_finetuning else 'NEW'}_{date_str}_{new_agent_uuid[:8]}"
 
         with mlflow.start_run(run_name=run_name) as run:
-            mlflow.set_tag("agent_uuid", new_agent_uuid)
-            mlflow.set_tag("game_mode", game_mode)
-
             env = make_vec_env(
                 lambda: Monitor(SnakeEnv(grid_size=grid_size, render_mode=None, game_mode=game_mode)),
                 n_envs=n_envs
@@ -176,58 +184,45 @@ def train_snake(
             if is_finetuning:
                 agent.set_env(env)
             else:
-                agent = PPO("MlpPolicy", env, verbose=sb3_verbose)
+                agent = PPO("MlpPolicy", env, verbose=0)
 
-            # Ajout du callback de stream qui gère l'arrêt
+            # Callback avec timesteps cibles pour la barre de progression
             callbacks = [MLflowLoggingCallback(), StreamCallback(run_id, timesteps)]
 
-            # Lancement de l'apprentissage
+            # Lancement (not is_finetuning permet de ne pas reset le compteur global interne de SB3, mais notre callback gère le relatif)
             agent.learn(total_timesteps=timesteps, callback=callbacks, reset_num_timesteps=not is_finetuning)
 
-            # VÉRIFICATION APRÈS BOUCLE : Est-ce qu'on a fini ou est-ce qu'on a été annulé ?
+            # Vérification Arrêt Manuel
             if training_manager.should_stop(run_id):
-                print(f"❌ Entraînement {run_id} annulé par l'utilisateur. Pas de sauvegarde.")
-                return # On quitte sans sauvegarder
+                training_manager.update(run_id, 0, [], {"status": "cancelled"}, 0, timesteps, status="cancelled")
+                return
 
-            print("\nSauvegarde...")
+            # Sauvegarde
             with tempfile.TemporaryDirectory() as temp_dir_str:
                 temp_dir = Path(temp_dir_str)
                 agent.save(temp_dir / "model.zip")
 
-                hf_folder = f"{grid_size}x{grid_size}/{new_agent_uuid}"
-                final_reward = safe_mean([ep["r"] for ep in agent.ep_info_buffer]) if agent.ep_info_buffer else None
+                final_reward = safe_mean([ep["r"] for ep in agent.ep_info_buffer]) if agent.ep_info_buffer else 0.0
 
                 metadata = {
-                    "uuid": new_agent_uuid,
-                    "type": "finetuned" if is_finetuning else "fresh",
-                    "parent_uuid": base_uuid,
-                    "grid_size": grid_size,
-                    "n_envs": n_envs,
-                    "game_mode": game_mode,
-                    "algorithm": algorithm,
-                    "date": readable_date,
-                    "final_mean_reward": final_reward,
-                    "hf_folder": hf_folder,
+                    "uuid": new_agent_uuid, "type": "finetuned" if is_finetuning else "fresh",
+                    "parent_uuid": base_uuid, "grid_size": grid_size, "n_envs": n_envs,
+                    "game_mode": game_mode, "algorithm": algorithm, "date": readable_date,
+                    "final_mean_reward": final_reward, "hf_folder": f"{grid_size}x{grid_size}/{new_agent_uuid}",
                     "mlflow_run_id": run.info.run_id
                 }
 
                 with open(temp_dir / "metadata.json", "w") as f: json.dump(metadata, f, indent=4)
 
                 api = HfApi(token=hf_token)
-                api.create_repo(repo_id=hf_repo_id, repo_type="model", exist_ok=True, private=True)
-                api.upload_folder(folder_path=str(temp_dir), path_in_repo=hf_folder, repo_id=hf_repo_id)
-
-                print(f"Terminé ! Modèle {game_mode} dispo : {new_agent_uuid}")
+                api.upload_folder(folder_path=str(temp_dir), path_in_repo=f"{grid_size}x{grid_size}/{new_agent_uuid}",
+                                  repo_id=hf_repo_id)
 
     except Exception as e:
-        print(f"❌ Erreur fatale training: {e}")
-        training_manager.update(run_id, 0, [], {"status": "error", "message": str(e)})
-        time.sleep(3)
+        print(f"❌ Erreur: {e}")
+        training_manager.update(run_id, 0, [], {"status": "error", "message": str(e)}, status="error")
+        time.sleep(2)
 
     finally:
-        print(f"Fin du processus pour {run_id}")
-        # On ne supprime pas immédiatement si c'est fini, pour laisser le front afficher "Terminé"
-        # Mais on nettoie les flags
-        if run_id in training_manager.cancel_flags:
-            training_manager.cancel_flags.remove(run_id)
-        # Le nettoyage final se fera quand le websocket se fermera ou via un timeout côté API
+        # Nettoyage différé géré par le websocket
+        pass
