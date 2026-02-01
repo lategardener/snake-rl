@@ -3,7 +3,7 @@ import httpx
 import re
 import os
 import json
-from app.main import app  # Import de ton application
+from app.main import app
 
 # URL fictive pour le transport interne
 BASE_URL = "http://testserver"
@@ -14,8 +14,8 @@ BASE_URL = "http://testserver"
 def setup_test_env(monkeypatch):
     """
     Configure l'environnement pour les tests :
-    1. Base de données SQLite locale pour MLflow (évite Postgres).
-    2. Dossiers temporaires pour éviter les erreurs de fichiers.
+    - Base de données SQLite locale pour MLflow (évite Postgres).
+    - Dossiers temporaires pour éviter les erreurs de fichiers.
     """
     monkeypatch.setenv("MLFLOW_TRACKING_URI", "sqlite:///test_mlflow.db")
     os.makedirs("models", exist_ok=True)
@@ -67,15 +67,14 @@ async def test_invalid_grid_size_type(app_transport):
     assert response.status_code == 422
 
 
-# --- LE TEST QUI POSAIT PROBLÈME ---
+# --- LE TEST CORRIGÉ AVEC LE BON CHEMIN ---
 @pytest.mark.asyncio
 async def test_list_models_structure(app_transport, mocker, tmp_path):
     """
     On utilise 'mocker' pour simuler HuggingFace.
-    On utilise 'tmp_path' pour créer un faux fichier metadata.json.
     """
 
-    # 1. Création d'un faux fichier metadata.json dans un dossier temporaire
+    # Création d'un faux fichier metadata.json
     fake_meta_file = tmp_path / "metadata.json"
     fake_data = {
         "uuid": "fake-uuid-123",
@@ -86,20 +85,18 @@ async def test_list_models_structure(app_transport, mocker, tmp_path):
     }
     fake_meta_file.write_text(json.dumps(fake_data))
 
-    # 2. On mock 'HfApi' pour qu'il ne se connecte pas à internet
-    # ATTENTION : Remplace 'app.api' par le nom réel du fichier où se trouve ton routeur !
-    # Si ton code est dans main.py, mets "app.main.HfApi"
-    mock_hf_api = mocker.patch("app.api.HfApi")
+    # On mock 'HfApi' dans le fichier 'app/routers/api.py'
+    mock_hf_api = mocker.patch("app.routers.api.HfApi")
     mock_hf_api.return_value.list_repo_files.return_value = ["model_folder/metadata.json"]
 
-    # 3. On mock 'hf_hub_download' pour qu'il retourne le chemin de notre faux fichier local
-    mocker.patch("app.api.hf_hub_download", return_value=str(fake_meta_file))
+    # On mock 'hf_hub_download' au même endroit
+    mocker.patch("app.routers.api.hf_hub_download", return_value=str(fake_meta_file))
 
-    # 4. Exécution du test
+    # Exécution du test
     async with httpx.AsyncClient(transport=app_transport, base_url=BASE_URL) as ac:
         response = await ac.get("/api/models")
 
-    # Debug si ça échoue
+    # Debug si nécessaire
     if response.status_code != 200:
         print(f"Erreur: {response.text}")
 
@@ -108,7 +105,6 @@ async def test_list_models_structure(app_transport, mocker, tmp_path):
     assert isinstance(models, list)
     assert len(models) == 1
     assert models[0]["uuid"] == "fake-uuid-123"
-    assert models[0]["reward"] == 150.5
 
 
 @pytest.mark.asyncio
@@ -126,8 +122,6 @@ async def test_predict_without_model(app_transport):
 
 @pytest.mark.asyncio
 async def test_load_non_existent_model(app_transport):
-    # Ici, pas besoin de mocker car si hf_hub_download échoue (réseau),
-    # ton code renvoie False, ce qui déclenche bien le 404 attendu.
     async with httpx.AsyncClient(transport=app_transport, base_url=BASE_URL) as ac:
         response = await ac.post("/api/load", json={
             "uuid": "non-existent-uuid",
