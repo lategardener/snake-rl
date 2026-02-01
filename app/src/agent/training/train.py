@@ -38,8 +38,8 @@ class TrainingStateManager:
     def update(self, run_id, progress, grids, stats=None, timesteps=0, total_timesteps=1, status="running"):
         self.active_trainings[run_id] = {
             "progress": progress,
-            "timesteps": timesteps,  # Steps faits dans cette session
-            "total_timesteps": total_timesteps,  # Objectif de cette session
+            "timesteps": timesteps,
+            "total_timesteps": total_timesteps,
             "grids": grids,
             "stats": stats,
             "timestamp": time.time(),
@@ -48,7 +48,6 @@ class TrainingStateManager:
 
     def get_status(self, run_id):
         if run_id in self.cancel_flags:
-            # On conserve les stats mais on change le status
             data = self.active_trainings.get(run_id, {})
             data["status"] = "cancelled"
             return data
@@ -72,53 +71,59 @@ training_manager = TrainingStateManager()
 
 
 # =============================================================================
-# 2. CALLBACK (CORRIGÉ : PROGRESSION RELATIVE)
+# 2. CALLBACK PERFORMANCE (MISE À JOUR PAR "CHUNKS")
 # =============================================================================
 class StreamCallback(BaseCallback):
     def __init__(self, run_id, target_session_timesteps, verbose=0):
         super().__init__(verbose)
         self.run_id = run_id
-        self.target_session_timesteps = target_session_timesteps  # L'objectif (ex: 50k)
-        self.initial_steps = None  # Pour stocker le point de départ
-        self.last_update = 0
+        self.target_session_timesteps = target_session_timesteps
+        self.initial_steps = None
 
     def _on_step(self) -> bool:
-        # Vérification d'arrêt
+        """
+        Appelé à CHAQUE step. Doit être ultra rapide.
+        On vérifie juste si on doit STOPPER. On ne calcule rien d'autre.
+        """
         if training_manager.should_stop(self.run_id):
-            return False
+            return False  # Arrêt immédiat
 
-        # Initialisation du point de départ au premier pas
+        # On capture juste le step de départ au tout premier passage
         if self.initial_steps is None:
             self.initial_steps = self.num_timesteps
 
-        # Mise à jour fluide (0.5s)
-        if time.time() - self.last_update > 0.5:
-            try:
-                # Calcul des steps faits UNIQUEMENT durant cette session
-                # self.num_timesteps contient le total cumulé depuis la naissance du modèle
-                session_steps_done = self.num_timesteps - self.initial_steps
-
-                # Progression relative (0.0 -> 1.0)
-                progress = session_steps_done / self.target_session_timesteps
-                # Cap à 1.0 pour l'affichage
-                progress = min(progress, 1.0)
-
-                stats = {}
-                if len(self.model.ep_info_buffer) > 0:
-                    stats['mean_reward'] = safe_mean([ep['r'] for ep in self.model.ep_info_buffer])
-
-                training_manager.update(
-                    run_id=self.run_id,
-                    progress=progress,
-                    grids=[],
-                    stats=stats,
-                    timesteps=session_steps_done,  # On envoie ce qui a été fait mtn
-                    total_timesteps=self.target_session_timesteps  # On envoie l'objectif
-                )
-                self.last_update = time.time()
-            except Exception:
-                pass
         return True
+
+    def _on_rollout_end(self) -> None:
+        """
+        Appelé à la fin d'une collecte de données (avant l'optimisation).
+        C'est ici que PPO fait une 'pause' pour apprendre.
+        C'est le moment idéal pour envoyer les stats sans ralentir le jeu.
+        """
+        try:
+            # Calcul des steps faits durant cette session
+            session_steps_done = self.num_timesteps - (self.initial_steps or 0)
+
+            # Progression
+            progress = session_steps_done / self.target_session_timesteps
+            progress = min(progress, 1.0)
+
+            stats = {}
+            # Récupération des infos (Reward) depuis le buffer
+            if len(self.model.ep_info_buffer) > 0:
+                stats['mean_reward'] = safe_mean([ep['r'] for ep in self.model.ep_info_buffer])
+
+            # Envoi au manager (ce qui mettra à jour le graphique)
+            training_manager.update(
+                run_id=self.run_id,
+                progress=progress,
+                grids=[],
+                stats=stats,
+                timesteps=session_steps_done,
+                total_timesteps=self.target_session_timesteps
+            )
+        except Exception as e:
+            print(f"Erreur update callback: {e}")
 
 
 # =============================================================================
@@ -137,7 +142,7 @@ def train_snake(
 ):
     if not hf_token: return
 
-    # Init Manager
+    # Init
     training_manager.update(run_id, 0, [], {"status": "initializing"}, 0, timesteps)
 
     now = datetime.now()
@@ -152,13 +157,11 @@ def train_snake(
 
     try:
         if base_uuid:
-            # Chargement du modèle existant
             agent, loaded_grid_size = load_snake_model_data(base_uuid, hf_repo_id, show_logs)
             if agent is None: raise ValueError("Modèle introuvable")
             grid_size = loaded_grid_size
             is_finetuning = True
 
-            # Récup meta pour conserver les params
             try:
                 meta_path = hf_hub_download(repo_id=hf_repo_id,
                                             filename=f"{grid_size}x{grid_size}/{base_uuid}/metadata.json")
@@ -171,7 +174,6 @@ def train_snake(
         else:
             if grid_size is None: raise ValueError("Grid Size manquant")
 
-        # Config MLflow
         mlflow.set_experiment(f"Snake_{grid_size}x{grid_size}")
         run_name = f"{'FINE-TUNING' if is_finetuning else 'NEW'}_{date_str}_{new_agent_uuid[:8]}"
 
@@ -186,13 +188,11 @@ def train_snake(
             else:
                 agent = PPO("MlpPolicy", env, verbose=0)
 
-            # Callback avec timesteps cibles pour la barre de progression
+            # Utilisation du nouveau StreamCallback optimisé
             callbacks = [MLflowLoggingCallback(), StreamCallback(run_id, timesteps)]
 
-            # Lancement (not is_finetuning permet de ne pas reset le compteur global interne de SB3, mais notre callback gère le relatif)
             agent.learn(total_timesteps=timesteps, callback=callbacks, reset_num_timesteps=not is_finetuning)
 
-            # Vérification Arrêt Manuel
             if training_manager.should_stop(run_id):
                 training_manager.update(run_id, 0, [], {"status": "cancelled"}, 0, timesteps, status="cancelled")
                 return
@@ -224,5 +224,4 @@ def train_snake(
         time.sleep(2)
 
     finally:
-        # Nettoyage différé géré par le websocket
         pass
