@@ -1,4 +1,5 @@
-const API_BASE_URL = "https://snake-rl.onrender.com";
+// On utilise l'origine dynamique pour fonctionner en local ET en prod sans changer le code
+const API_BASE_URL = window.location.origin;
 
 const canvas = document.getElementById('snakeCanvas');
 const ctx = canvas.getContext('2d');
@@ -55,9 +56,6 @@ async function init() {
 function updateToolsState() {
     const wallBtn = document.getElementById('btn-drop-wall');
 
-    // On désactive tout le temps l'interaction si pas de jeu lancé,
-    // mais ici on gère surtout l'aspect visuel selon le mode.
-
     if (activeGameMode === 'walls') {
         // Mode Walls : Le bouton est activé
         wallBtn.classList.remove('locked');
@@ -79,7 +77,6 @@ function updateToolsState() {
 
 // --- BOUTON : PLAN NEXT FOOD ---
 function toggleFoodPlanning() {
-    // Marche dans tous les modes
     const btn = document.getElementById('btn-plan-food');
     nextFoodManual = !nextFoodManual;
 
@@ -100,7 +97,6 @@ function toggleFoodPlanning() {
 
 // --- BOUTON : DROP WALL ---
 function activateWallMode() {
-    // Sécurité : Impossible si mode classic
     if (activeGameMode !== 'walls' || !canPlaceWall) return;
 
     const btn = document.getElementById('btn-drop-wall');
@@ -173,7 +169,7 @@ function onCanvasClick(e) {
             draw();
         }
     }
-    // 2. MUR (Seulement si activeGameMode est 'walls')
+    // 2. MUR
     else if (isPlacingWall && activeGameMode === 'walls' && canPlaceWall) {
         if (!snake.some(p => p.x === col && p.y === row) && !(food.x === col && food.y === row)) {
             walls.push({x: col, y: row});
@@ -337,7 +333,7 @@ function draw() {
     }
 }
 
-// Fonction de chargement inchangée (mais assure-toi que tes badges fonctionnent)
+// --- CORRECTION MAJEURE ICI (Récupération correcte du reward) ---
 async function loadModels() {
      try {
         const res = await fetch(`${API_BASE_URL}/api/models`);
@@ -349,23 +345,34 @@ async function loadModels() {
             groupedModels[model.grid_size].push(model);
         });
         const sortedGridSizes = Object.keys(groupedModels).sort((a, b) => parseInt(a) - parseInt(b));
+
         sortedGridSizes.forEach(size => {
             const header = document.createElement('div');
             header.className = 'grid-category-header';
             header.innerHTML = `GRID SYSTEM [ ${size}x${size} ]`;
             modelListEl.appendChild(header);
-            groupedModels[size].sort((a, b) => (b.reward || 0) - (a.reward || 0));
+
+            // Tri par reward (en utilisant final_mean_reward)
+            groupedModels[size].sort((a, b) => (b.final_mean_reward || 0) - (a.final_mean_reward || 0));
+
             groupedModels[size].forEach(model => {
                 const card = document.createElement('div');
                 card.className = 'model-card';
                 let badgeHtml = model.game_mode === 'walls' ? `<span class="mode-badge badge-walls">WALLS</span>` : `<span class="mode-badge badge-classic">CLASSIC</span>`;
+
+                // --- CORRECTION AFFICHAGE REWARD ---
+                let rewardDisplay = "N/A";
+                if (model.final_mean_reward !== undefined && model.final_mean_reward !== null) {
+                    rewardDisplay = model.final_mean_reward.toFixed(2);
+                }
+
                 card.innerHTML = `
                     <div class="card-top"><span class="grid-badge">${model.algorithm || 'PPO'}</span>${badgeHtml}</div>
                     <div style="margin-top:5px; display:flex; justify-content:space-between;">
                          <span class="uuid">${model.uuid.substring(0, 8)}...</span>
-                         <span class="reward">R: ${model.reward ? model.reward.toFixed(2) : 'N/A'}</span>
+                         <span class="reward" style="color:${parseFloat(rewardDisplay) > 0 ? 'var(--neon-green)' : '#888'}">R: ${rewardDisplay}</span>
                     </div>
-                    <span class="date">${model.date}</span>`;
+                    <span class="date">${model.date ? model.date.split(' ')[0] : ''}</span>`;
                 card.onclick = () => selectModel(model, card);
                 modelListEl.appendChild(card);
             });
@@ -389,13 +396,11 @@ async function selectModel(model, cardElement) {
             GRID_SIZE = model.grid_size;
             CELL_SIZE = canvas.width / GRID_SIZE;
 
-            // --- MISE À JOUR DU MODE ICI ---
             activeModelNameEl.innerText = `AGENT: ${model.uuid.substring(0, 8)}`;
             activeModelNameEl.innerHTML += ` <span style="font-size:0.5em; color:var(--neon-pink)">[${model.grid_size}x${model.grid_size}]</span>`;
 
-            // On récupère le mode du modèle et on met à jour les boutons
             activeGameMode = model.game_mode || 'classic';
-            updateToolsState(); // <--- C'est ici que la magie opère
+            updateToolsState();
 
             overlayEl.style.display = 'none';
             pauseBtn.disabled = false;
@@ -406,8 +411,7 @@ async function selectModel(model, cardElement) {
 
 async function resetGame() {
     if (gameLoopInterval) clearInterval(gameLoopInterval);
-    
-    // --- NOUVEL APPEL API POUR LES MÉTRIQUES ---
+
     try {
         await fetch(`${API_BASE_URL}/api/start`, {
             method: 'POST',
@@ -415,9 +419,8 @@ async function resetGame() {
             body: JSON.stringify({ grid_size: GRID_SIZE })
         });
     } catch (e) {
-        console.error("Erreur lors de l'envoi du métrique start_game:", e);
+        console.error("Erreur métrique start_game:", e);
     }
-    // -------------------------------------------
 
     snake = [{x: Math.floor(GRID_SIZE/2), y: Math.floor(GRID_SIZE/2)}];
     score = 0;
@@ -430,12 +433,10 @@ async function resetGame() {
     walls = [];
     wallTimer = 0;
 
-    // Reset UI Outils
     const btnFood = document.getElementById('btn-plan-food');
     btnFood.classList.remove('armed');
     btnFood.innerText = "🍎 PLAN NEXT FOOD";
 
-    // Reset Wall state si nécessaire
     updateToolsState();
 
     statusText.innerText = "ONLINE - RUNNING";

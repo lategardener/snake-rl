@@ -53,16 +53,17 @@
                 <hr style="border:0; border-top:1px solid #333; margin: 15px 0;">
 
                 <div class="train-form">
-                    <label style="color:white; font-size:0.8rem; margin-bottom:8px; display:block; font-family:var(--font-display);">TARGET TIMESTEPS</label>
+                    <label style="color:white; font-size:0.8rem; margin-bottom:8px; display:block; font-family:var(--font-display);">TARGET TIMESTEPS (5K - 100K)</label>
+
                     <div class="ts-control-panel">
-                        <div id="ts-display" class="ts-display">50,000</div>
-                        <div class="ts-switch-row">
+                        <div id="ts-display" class="ts-display">20,000</div> <div class="ts-switch-row">
                             <button id="btn-mode-add" class="mode-btn active-add" onclick="setOpMode(1)">ADD (+)</button>
                             <button id="btn-mode-sub" class="mode-btn" onclick="setOpMode(-1)">REMOVE (-)</button>
                         </div>
+
                         <div class="ts-numpad">
+                            <button class="num-btn" onclick="modifyTimesteps(5000)">5 K</button>
                             <button class="num-btn" onclick="modifyTimesteps(10000)">10 K</button>
-                            <button class="num-btn" onclick="modifyTimesteps(100000)">100 K</button>
                         </div>
                     </div>
                     <button id="btn-launch-train" onclick="launchTraining()" class="neon-btn btn-warning" style="width:100%; margin-top: 20px;">
