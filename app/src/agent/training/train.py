@@ -71,7 +71,7 @@ training_manager = TrainingStateManager()
 
 
 # =============================================================================
-# 2. CALLBACK PERFORMANCE (MISE À JOUR PAR "CHUNKS")
+# 2. CALLBACK "NATIVE SPEED" (Mise à jour uniquement aux pauses PPO)
 # =============================================================================
 class StreamCallback(BaseCallback):
     def __init__(self, run_id, target_session_timesteps, verbose=0):
@@ -82,13 +82,14 @@ class StreamCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         """
-        Appelé à CHAQUE step. Doit être ultra rapide.
-        On vérifie juste si on doit STOPPER. On ne calcule rien d'autre.
+        Appelé des milliers de fois par seconde.
+        DOIT ÊTRE EXTRÊMEMENT LÉGER.
         """
+        # Seule vérification : Est-ce qu'on doit couper le courant ?
         if training_manager.should_stop(self.run_id):
-            return False  # Arrêt immédiat
+            return False
 
-        # On capture juste le step de départ au tout premier passage
+            # On capture juste le compteur au premier passage
         if self.initial_steps is None:
             self.initial_steps = self.num_timesteps
 
@@ -96,24 +97,23 @@ class StreamCallback(BaseCallback):
 
     def _on_rollout_end(self) -> None:
         """
-        Appelé à la fin d'une collecte de données (avant l'optimisation).
-        C'est ici que PPO fait une 'pause' pour apprendre.
-        C'est le moment idéal pour envoyer les stats sans ralentir le jeu.
+        C'est ICI que PPO s'arrête naturellement pour apprendre (tous les n_steps * n_envs).
+        On profite de cette pause pour mettre à jour l'interface sans ralentir le jeu.
         """
         try:
             # Calcul des steps faits durant cette session
-            session_steps_done = self.num_timesteps - (self.initial_steps or 0)
+            current_total = self.num_timesteps
+            session_steps_done = current_total - (self.initial_steps or 0)
 
             # Progression
             progress = session_steps_done / self.target_session_timesteps
             progress = min(progress, 1.0)
 
             stats = {}
-            # Récupération des infos (Reward) depuis le buffer
             if len(self.model.ep_info_buffer) > 0:
                 stats['mean_reward'] = safe_mean([ep['r'] for ep in self.model.ep_info_buffer])
 
-            # Envoi au manager (ce qui mettra à jour le graphique)
+            # Envoi des données (Graphique + Barre)
             training_manager.update(
                 run_id=self.run_id,
                 progress=progress,
@@ -122,8 +122,8 @@ class StreamCallback(BaseCallback):
                 timesteps=session_steps_done,
                 total_timesteps=self.target_session_timesteps
             )
-        except Exception as e:
-            print(f"Erreur update callback: {e}")
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -188,11 +188,13 @@ def train_snake(
             else:
                 agent = PPO("MlpPolicy", env, verbose=0)
 
-            # Utilisation du nouveau StreamCallback optimisé
+            # Callback
             callbacks = [MLflowLoggingCallback(), StreamCallback(run_id, timesteps)]
 
+            # Apprentissage
             agent.learn(total_timesteps=timesteps, callback=callbacks, reset_num_timesteps=not is_finetuning)
 
+            # Check Stop à la fin
             if training_manager.should_stop(run_id):
                 training_manager.update(run_id, 0, [], {"status": "cancelled"}, 0, timesteps, status="cancelled")
                 return
